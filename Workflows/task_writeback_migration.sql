@@ -31,7 +31,7 @@ CREATE OR REPLACE FUNCTION agent_find_similar_open_task(
 RETURNS TABLE (
   task_id    TEXT,
   task_text  TEXT,
-  similarity FLOAT
+  similarity REAL
 )
 LANGUAGE plpgsql
 AS $$
