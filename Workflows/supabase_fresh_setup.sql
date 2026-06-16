@@ -4,6 +4,13 @@
 -- Run this entire file in the Supabase SQL Editor (one paste, one run).
 -- PREREQUISITE: Enable the pgvector extension first:
 --   Dashboard → Database → Extensions → search "vector" → Enable
+--
+-- ONLY FOR BOOTSTRAPPING A BRAND-NEW SUPABASE PROJECT. The agent_* RPC
+-- functions defined below are OUTDATED (type mismatches — see git history).
+-- For the current, correct RPC functions, run these in order after this file:
+--   1. apply_agent_functions.sql      (core agent_* tools, all fixed)
+--   2. task_writeback_migration.sql   (task write-back + dedup)
+--   3. artifact_storage_migration.sql (artifact save/search/get)
 -- =============================================================================
 
 

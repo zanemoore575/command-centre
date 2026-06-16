@@ -1,6 +1,6 @@
 # CAiS Command Centre — Living Project Status
 
-Updated: 2026-06-17
+Updated: 2026-06-17 (task write-back + artifact storage)
 
 ## Purpose
 - Capture business context in journal entries.
@@ -17,6 +17,9 @@ Updated: 2026-06-17
 - Dashboard / timeline visualization — planned
 - Claude Code / MCP integration / docs sync — active
 - MCP server hosting — migrated from local Mac + ngrok to Render (complete, 2026-06-17)
+- Task write-back (complete/update/create/merge tasks, dedup-on-ingest, real priority spread) — complete, 2026-06-17
+- Artifact storage (save/search/get documents Claude authors or Zane uploads) — complete, 2026-06-17
+- Daily brief (Telegram push + reply capture) — planned, not started (see `cais-build-brief-tasks-daily-brief.md`, Part B)
 
 ## What is complete
 - FastAPI backend with PostgreSQL / optional SQLite support.
@@ -90,3 +93,21 @@ The root directory has been decluttered. Old phase-specific implementation and t
 - claude.ai connector repointed at `https://cais-mcp-server.onrender.com/mcp`; verified `get_recent_memories`, `get_tasks`, `search_memories` all working end-to-end.
 - Local MCP server process and ngrok tunnel have been stopped — the Mac is no longer required for the MCP connector to work.
 - Known item noted at the time: `search_memories` sometimes appeared to be missing entries. Root cause turned out to be the write/ingest path, not credentials — see "Write/ingest path fix (2026-06-17)" above.
+
+## Task write-back (2026-06-17)
+- **Goal:** make tasks manageable, not just readable — Claude can now close, edit, create, and merge tasks instead of only listing them. Build brief: `cais-build-brief-tasks-daily-brief.md` (Part A).
+- **New MCP tools** (`backend/app/mcp/server.py` + `supabase_tools.py`): `complete_task`, `update_task`, `create_task`, `merge_tasks` — same direct-Supabase-RPC pattern as the existing read tools.
+- **Schema** (`Workflows/task_writeback_migration.sql`): added `due_date`, `priority`, `entity_name` to `tasks`; enabled `pg_trgm` for fuzzy dedup matching; new RPCs `agent_complete_task`, `agent_update_task`, `agent_create_task`, `agent_merge_tasks`, `agent_find_similar_open_task`; refreshed `agent_get_tasks` to sort by priority → due_date → urgency.
+- **Dedup on ingest** (`Workflows/n8n workflows/ingest-workflow.json`): added `Check For Duplicate Task` → `If Duplicate Found` between the existing `If5` and `Insert Tasks` nodes. A new extracted task is silently dropped if a trigram-similar (>0.45) open task already exists, instead of creating a near-duplicate every time a topic comes up again.
+- **Real prioritization**: rewrote the `Extract Action Items` LLM prompt with explicit urgency/priority criteria (previously everything defaulted to `urgency: immediate`, making the field meaningless) — now extracts `priority`, `due_date`, and `entity_name` per task too.
+- **Bug found + fixed during verification:** `agent_find_similar_open_task` initially declared its similarity column as `FLOAT` but Postgres's `similarity()` returns `real` — caused every dedup check to fail with a type error. Fixed and re-verified live (correctly found a 0.93-similarity match on near-duplicate phrasing, and correctly returned no match on unrelated text).
+- **Verified live (2026-06-17):** all 5 acceptance tests passed against the deployed Supabase instance — create/complete/update/dedup/priority-sort all confirmed working end-to-end, test data cleaned up after.
+
+## Artifact storage (2026-06-17)
+- **Goal:** let Claude.ai save real documents (proposals, guides, uploaded files) it works on with Zane, find them later by title/tag/client, and pull back the exact saved content — including overwrite-in-place so an edit/recall/re-edit loop doesn't pile up stale duplicates. Design brief + Claude.ai's resolved decisions: `cais-build-brief-artifact-storage.md`.
+- **Key design call:** store the *source*, not the rendered file, for anything Claude authors. A proposal's canonical form is its markdown/text (`source_content`); PDFs are rendered fresh in Claude's own sandbox when needed, never round-tripped as stale binary. Uploaded files (e.g. a client's PDF) are the other case — canonical form is the binary itself, stored in Supabase Storage.
+- **New MCP tools:** `save_artifact` (create or overwrite-in-place via `artifact_id`; refuses to silently create a same-title+entity duplicate), `search_artifacts` (by title/tag/entity/content), `get_artifact` (returns text by default, raw file bytes only with `include_file=true`).
+- **Schema + Storage** (`Workflows/artifact_storage_migration.sql`): new `artifacts` table (`kind`: authored/uploaded, `format`, `source_content`, `storage_path`, `tags`, `entity_name`, `memory_id` link); new Supabase Storage bucket `artifacts` (private); RPCs `agent_save_artifact` (upsert by client-generated UUID), `agent_search_artifacts`, `agent_get_artifact`, `agent_find_artifact_by_title`.
+- **Searchability without n8n:** every save writes a companion `memories` row (`source: 'artifact'`) and embeds it directly via a server-side OpenAI call (`text-embedding-3-small`, same model n8n uses) — deliberately skips the 7-way extraction pipeline (entities/decisions/tasks/etc.) since running "extract tasks" over proposal boilerplate isn't useful signal. Requires `OPENAI_API_KEY` in the MCP server's env (local `.env` + Render) — new requirement, separate from n8n's own OpenAI credential.
+- **Verified live (2026-06-17):** full loop tested against deployed Supabase — create → embed (confirmed real 1536-dim vector written) → dedup-refusal on same title+entity → overwrite-in-place via returned `artifact_id` → search by entity and by content → binary upload/download round-trip (byte-for-byte match). One real bug found and fixed: the table grant was missing `DELETE`, added to the migration.
+- **Out of scope for this build (deferred, not rejected):** version history/rollback (replace-only for now), large-file presigned-URL upload path, server-side PDF/docx rendering.

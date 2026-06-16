@@ -22,7 +22,7 @@
 |----------|------|---------|
 | **Agentic Bot V2** | `telegram_cais_bot_workflow_agentic_v2.json` | **PRIMARY** - Claude Sonnet 4.5 with specialist agents and 5 tools |
 | Timeout Handler | `telegram_session_timeout_handler_workflow.json` | Auto-saves inactive sessions (30 min timeout), runs every 5 min |
-| Ingestion Pipeline | `ingest-workflow.json` | Extracts entities, decisions, reflections from transcripts. Two entry points: `/webhook/ingest-conversation` (voice path, inserts a new row) and `/webhook/ingest-pending` (poller path, updates an existing row in place) — both converge into the same extraction/embedding nodes |
+| Ingestion Pipeline | `ingest-workflow.json` | Extracts entities, decisions, reflections from transcripts. Two entry points: `/webhook/ingest-conversation` (voice path, inserts a new row) and `/webhook/ingest-pending` (poller path, updates an existing row in place) — both converge into the same extraction/embedding nodes. Task extraction now also dedups: `Check For Duplicate Task` calls `agent_find_similar_open_task` before `Insert Tasks`, dropping near-duplicates instead of inserting them (added 2026-06-17). Artifacts deliberately bypass this whole pipeline — see Artifact storage tools below |
 | Shortcut Voice | `shortcut_voicenote_workflow.json` | iOS Shortcut voice note ingestion |
 | **Pending Memory Poller** | `pending-memory-poller-workflow.json` | **NEW (2026-06-17)** - Runs every 2 min, finds any `memories` row stuck at `status='pending'` (e.g. from `log_memory`), claims it, and routes it into the ingestion pipeline via `/webhook/ingest-pending`. Makes ingestion source-agnostic — any future write path just needs to insert with `status: pending` |
 
@@ -110,8 +110,12 @@ tasks
 ├── memory_id (FK)
 ├── task (TEXT)
 ├── urgency (TEXT) - 'immediate' | 'this_week' | 'soon' | 'someday'
+├── priority (TEXT) - 'high' | 'medium' | 'low' (added 2026-06-17)
+├── due_date (DATE, nullable, added 2026-06-17)
+├── entity_name (TEXT, nullable, added 2026-06-17)
 ├── category (TEXT)
 ├── completed (BOOLEAN)
+├── status (TEXT) - 'open' | 'completed' | 'merged'
 └── completed_at (TIMESTAMPTZ)
 
 themes
@@ -120,6 +124,17 @@ themes
 ├── sub_themes (JSONB)
 ├── conversation_type (TEXT)
 └── key_takeaways (JSONB)
+
+artifacts (added 2026-06-17)
+├── title (TEXT) - also the overwrite-matching identity, with entity_name
+├── kind (TEXT) - 'authored' (Claude-made) | 'uploaded' (a real file)
+├── format (TEXT) - 'md' | 'txt' | 'pdf' | 'docx'
+├── source_content (TEXT, nullable) - canonical editable text for 'authored'
+├── storage_path (TEXT, nullable) - path in the 'artifacts' Storage bucket
+├── extracted_text (TEXT, nullable)
+├── tags (JSONB)
+├── entity_name (TEXT, nullable)
+└── memory_id (FK, nullable) - companion memory for embedding/search
 ```
 
 #### RPC Functions
@@ -131,14 +146,14 @@ append_session_message(p_session_id UUID, p_role TEXT, p_content TEXT) → void
 compile_session_transcript(p_session_id UUID) → TEXT
 ```
 
-**Agent Tools:**
+**Agent Tools (read):**
 ```sql
-agent_discover_database() → TABLE  -- NEW: Returns all available data categories
+agent_discover_database() → TABLE
 agent_search_memories_by_embedding(query_embedding, match_threshold, match_count) → TABLE
 agent_get_entity_details(search_name TEXT) → TABLE
 agent_get_decisions(search_topic TEXT, recent_days INT) → TABLE
 agent_get_reflections(search_topic TEXT, recent_days INT) → TABLE
-agent_get_tasks(task_status TEXT) → TABLE
+agent_get_tasks(task_status TEXT) → TABLE  -- now sorts by priority → due_date → urgency
 agent_get_strategic_insights(search_category TEXT, recent_days INT) → TABLE
 agent_get_customer_insights(search_customer TEXT) → TABLE
 agent_get_memory_context(target_memory_id BIGINT) → TABLE  -- Full deep dive
@@ -146,10 +161,30 @@ agent_get_recent_memories(limit_count INT, filter_source TEXT) → TABLE
 agent_search_by_theme(theme_keywords TEXT, limit_count INT) → TABLE
 ```
 
-**SQL Files:**
-- `supabase_rpc_functions.sql` - Core session functions
-- `supabase_agent_tools.sql` - Agent tool functions (10 tools)
-- `agent_discovery_function.sql` - **NEW** Discovery tool function
+**Agent Tools (task write-back, added 2026-06-17):**
+```sql
+agent_complete_task(target_task_id TEXT) → TABLE
+agent_update_task(target_task_id TEXT, new_task, new_urgency, new_priority, new_due_date, new_category) → TABLE
+agent_create_task(new_task TEXT, new_context, new_urgency, new_category, new_due_date, new_entity_name, source_memory_id) → TABLE
+agent_merge_tasks(keep_task_id TEXT, merge_task_ids TEXT[]) → TABLE
+agent_find_similar_open_task(candidate_text TEXT, match_threshold FLOAT) → TABLE  -- pg_trgm dedup, used by ingest-workflow.json before inserting a new task
+```
+
+**Agent Tools (artifacts, added 2026-06-17):**
+```sql
+agent_save_artifact(target_artifact_id TEXT, new_title, new_kind, new_format, new_source_content, new_storage_path, new_tags, new_entity_name, source_memory_id, new_extracted_text) → TABLE  -- upsert by id
+agent_find_artifact_by_title(search_title TEXT, search_entity_name TEXT) → TABLE  -- dedup check before a new save
+agent_search_artifacts(query TEXT) → TABLE
+agent_get_artifact(target_artifact_id TEXT) → TABLE
+```
+
+**SQL Files (current — run in this order on a fresh project, or individually to update an existing one):**
+- `supabase_fresh_setup.sql` - Original table CREATE statements (RPC functions inside it are outdated — see note at top of the file)
+- `apply_agent_functions.sql` - All read-only agent_* RPC functions, correct types (run after fresh_setup, or standalone to fix an existing project)
+- `task_writeback_migration.sql` - Task write-back tools, schema additions (`priority`/`due_date`/`entity_name`), dedup RPC
+- `artifact_storage_migration.sql` - `artifacts` table + Storage bucket + save/search/get RPCs
+
+**SQL Files (archived, superseded by apply_agent_functions.sql):** `archive/sql/supabase_agent_tools.sql`, `archive/sql/agent_discovery_function.sql`, `archive/sql/UPGRADE_INSTRUCTIONS.md`
 
 ---
 

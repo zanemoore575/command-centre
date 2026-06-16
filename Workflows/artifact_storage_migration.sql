@@ -29,7 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_artifacts_title_entity ON artifacts (lower(title)
 CREATE INDEX IF NOT EXISTS idx_artifacts_entity_name ON artifacts (entity_name);
 
 ALTER TABLE artifacts DISABLE ROW LEVEL SECURITY;
-GRANT SELECT, INSERT, UPDATE ON artifacts TO anon, authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON artifacts TO anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
 -- 2. Find an exact title+entity collision (for the "no id given" dedup check)

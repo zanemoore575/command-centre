@@ -24,6 +24,8 @@ Personal AI system for capturing business context, extracting insights, and trac
 - Dashboard / timeline: planned
 - Claude Code / MCP integration: active — writes via `log_memory` and voice notes both flow through the same ingest pipeline (fixed 2026-06-17)
 - MCP server hosting: live on Render (`https://cais-mcp-server.onrender.com`), no longer dependent on the local Mac/ngrok
+- Task write-back: complete — Claude can close, edit, create, and merge tasks, with dedup-on-ingest and real priority extraction (2026-06-17)
+- Artifact storage: complete — Claude can save, find, and recall documents (proposals, guides, uploads) it works on with Zane (2026-06-17)
 
 ## Architecture overview
 - Backend: FastAPI + SQLAlchemy + Alembic
