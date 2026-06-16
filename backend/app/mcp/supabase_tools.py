@@ -124,6 +124,69 @@ def tool_discover_database() -> list[dict]:
     return result if isinstance(result, list) else []
 
 
+def tool_complete_task(task_id: str) -> dict:
+    """Mark a task as completed."""
+    result = _rpc("agent_complete_task", {"target_task_id": task_id})
+    if isinstance(result, list) and result:
+        return result[0]
+    return {}
+
+
+def tool_update_task(
+    task_id: str,
+    task: Optional[str] = None,
+    urgency: Optional[str] = None,
+    priority: Optional[str] = None,
+    due_date: Optional[str] = None,
+    category: Optional[str] = None,
+) -> dict:
+    """Edit an existing task's text, urgency, priority, due date, or category."""
+    result = _rpc("agent_update_task", {
+        "target_task_id": task_id,
+        "new_task": task,
+        "new_urgency": urgency,
+        "new_priority": priority,
+        "new_due_date": due_date,
+        "new_category": category,
+    })
+    if isinstance(result, list) and result:
+        return result[0]
+    return {}
+
+
+def tool_create_task(
+    task: str,
+    context: Optional[str] = None,
+    urgency: str = "soon",
+    category: Optional[str] = None,
+    due_date: Optional[str] = None,
+    entity_name: Optional[str] = None,
+) -> dict:
+    """Create a new task directly (not extracted from a memory)."""
+    result = _rpc("agent_create_task", {
+        "new_task": task,
+        "new_context": context,
+        "new_urgency": urgency,
+        "new_category": category,
+        "new_due_date": due_date,
+        "new_entity_name": entity_name,
+    })
+    if isinstance(result, list) and result:
+        return result[0]
+    return {}
+
+
+def tool_merge_tasks(keep_id: str, merge_ids: list[str]) -> dict:
+    """Fold near-duplicate tasks into one, keeping the earliest created_at and any due_date."""
+    result = _rpc("agent_merge_tasks", {
+        "keep_task_id": keep_id,
+        "merge_task_ids": merge_ids,
+    })
+    if isinstance(result, list) and result:
+        return result[0]
+    return {}
+
+
 def tool_log_memory(transcript: str, source: str = "claude_conversation") -> dict:
     """
     Save a new memory (conversation or note) to the database with status 'pending'.

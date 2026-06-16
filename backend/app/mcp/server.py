@@ -80,6 +80,10 @@ from app.mcp.supabase_tools import (
     tool_get_reflections,
     tool_discover_database,
     tool_log_memory,
+    tool_complete_task,
+    tool_update_task,
+    tool_create_task,
+    tool_merge_tasks,
 )
 
 # ---------------------------------------------------------------------------
@@ -275,6 +279,92 @@ def log_memory(content: str) -> dict:
         content: The full text to save. Write it as a clear transcript or note.
     """
     return tool_log_memory(transcript=content, source="claude_conversation")
+
+
+@mcp.tool()
+def complete_task(task_id: str) -> dict:
+    """
+    Mark a task as completed and stamp completed_at.
+
+    Args:
+        task_id: The task's UUID, from get_tasks.
+    """
+    return tool_complete_task(task_id=task_id)
+
+
+@mcp.tool()
+def update_task(
+    task_id: str,
+    task: Optional[str] = None,
+    urgency: Optional[str] = None,
+    priority: Optional[str] = None,
+    due_date: Optional[str] = None,
+    category: Optional[str] = None,
+) -> dict:
+    """
+    Edit an existing task. Only the fields you pass are changed; everything
+    else is left as-is.
+
+    Args:
+        task_id: The task's UUID, from get_tasks.
+        task: New task text.
+        urgency: 'immediate', 'this_week', 'soon', or 'someday'.
+        priority: 'high', 'medium', or 'low'.
+        due_date: ISO date string (YYYY-MM-DD).
+        category: e.g. 'build', 'outreach', 'research', 'content', 'personal', 'follow_up'.
+    """
+    return tool_update_task(
+        task_id=task_id,
+        task=task,
+        urgency=urgency,
+        priority=priority,
+        due_date=due_date,
+        category=category,
+    )
+
+
+@mcp.tool()
+def create_task(
+    task: str,
+    context: Optional[str] = None,
+    urgency: str = "soon",
+    category: Optional[str] = None,
+    due_date: Optional[str] = None,
+    entity_name: Optional[str] = None,
+) -> dict:
+    """
+    Create a new task directly from a Claude.ai chat (not extracted from a memory).
+
+    Args:
+        task: Clear, actionable task description.
+        context: Why this task matters.
+        urgency: 'immediate', 'this_week', 'soon' (default), or 'someday'.
+        category: e.g. 'build', 'outreach', 'research', 'content', 'personal', 'follow_up'.
+        due_date: ISO date string (YYYY-MM-DD), if known.
+        entity_name: Person/company/project this task relates to, e.g. 'Jake'.
+    """
+    return tool_create_task(
+        task=task,
+        context=context,
+        urgency=urgency,
+        category=category,
+        due_date=due_date,
+        entity_name=entity_name,
+    )
+
+
+@mcp.tool()
+def merge_tasks(keep_id: str, merge_ids: list[str]) -> dict:
+    """
+    Fold near-duplicate tasks into one. The kept task preserves the earliest
+    created_at and any due_date across the merged set; the others are marked
+    'merged' (no longer open).
+
+    Args:
+        keep_id: UUID of the task to keep.
+        merge_ids: UUIDs of the duplicate tasks to fold into keep_id.
+    """
+    return tool_merge_tasks(keep_id=keep_id, merge_ids=merge_ids)
 
 
 # ---------------------------------------------------------------------------
