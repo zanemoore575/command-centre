@@ -1,10 +1,10 @@
 # CAiS Command Centre — MCP Server
 
-Remote MCP server exposing CAiS journal data to Claude (web, mobile, Projects, Desktop, Code).
+Remote MCP server exposing CAiS data to Claude (web, mobile, Projects, Desktop, Code).
 
 **Auth:** Google OAuth 2.0 (PKCE, S256) — single-user allowlist  
 **Transport:** Streamable HTTP (MCP spec 2025-03-26)  
-**Phase 1 tool:** `search_journal_entries`
+**Hosting:** Render Web Service (always-on) — `https://cais-mcp-server.onrender.com`
 
 ---
 
@@ -22,9 +22,53 @@ Claude app
     │  7. POST /token  (PKCE exchange) → access token + refresh token
     │  8. POST /mcp  (Bearer token) → tool result
     └──────────────────────────────────────────────────────────────┘
-                    CAiS MCP server (port 8001)
-                    ngrok stable tunnel (HTTPS)
+                    CAiS MCP server, hosted on Render
+                    https://cais-mcp-server.onrender.com
 ```
+
+The server used to run on this Mac and was exposed via an ngrok tunnel. As of 2026-06-17 it's
+deployed on Render as an always-on Web Service, so it runs independently of the Mac and works
+from every Claude client, including mobile, with the Mac off. See "Production deployment (Render)"
+below. The ngrok/local-tunnel workflow further down is kept only for local development.
+
+---
+
+## Production deployment (Render)
+
+- **Repo:** `zanemoore575/cais-command-centre` (private, GitHub) — Render deploys from this.
+- **Service type:** Web Service, Starter instance (not Free — avoids cold-start spin-down that
+  would make the connector intermittently fail to load tools).
+- **Root Directory:** `backend`
+- **Build Command:** `pip install -r requirements.txt`
+- **Start Command:** `python -m app.mcp.server`
+- **Health check path:** `/health`
+- **Python version:** pinned to 3.12 via `backend/runtime.txt` and the `PYTHON_VERSION` env var —
+  newer Python defaults on Render didn't have a prebuilt wheel for `pydantic-core`.
+- **Single instance only** — no autoscaling. OAuth/session state (`oauth_provider.py`) is kept
+  in-memory per-process; multiple instances would fragment sessions.
+- **Env vars** (set in Render dashboard → Environment, never committed):
+  `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_CLIENT_ID`,
+  `GOOGLE_CLIENT_SECRET`, `MCP_ALLOWED_EMAIL`, `MCP_PUBLIC_URL=https://cais-mcp-server.onrender.com`.
+  Render injects `PORT` automatically — do not set `MCP_PORT` or `MCP_HOST`.
+- **Google OAuth redirect URI:** `https://cais-mcp-server.onrender.com/oauth/google/callback` must
+  be added to the OAuth client's Authorized redirect URIs in Google Cloud Console (in addition to
+  the claude.ai/claude.com callback URIs in Step 2 below).
+- **claude.ai connector:** points at `https://cais-mcp-server.onrender.com/mcp`.
+- Auto-deploy is enabled — pushes to `main` redeploy automatically.
+
+To verify the deployment is healthy:
+
+```bash
+curl -s https://cais-mcp-server.onrender.com/health                       # expect: ok
+curl -s https://cais-mcp-server.onrender.com/.well-known/oauth-authorization-server
+```
+
+---
+
+## Local development setup
+
+The steps below (ngrok + `.env`) are for running the server locally during development. They are
+not how the production connector is hosted anymore — see "Production deployment" above for that.
 
 ---
 
@@ -189,10 +233,9 @@ curl -s http://127.0.0.1:8001/mcp \
 | OAuth 2.0 + PKCE (S256) | Implemented |
 | Single-user allowlist (email check) | Implemented — only `MCP_ALLOWED_EMAIL` is admitted |
 | Tokens scoped to this server | Implemented via `mcp` scope |
-| HTTPS via tunnel | Required — ngrok provides TLS termination |
-| Tunnel not permanently running | Your responsibility — stop ngrok when not in use |
-
-> **Before always-on hosting:** replace ngrok with a proper deployment (Fly.io, Railway, VPS) and front it with Cloudflare Access or a similar zero-trust gateway. The current setup is for development and personal use only.
+| HTTPS | Provided by Render in production; ngrok provides TLS termination for local dev |
+| Always-on hosting | Render Web Service (Starter instance), independent of the Mac |
+| Secrets | Set in Render's Environment tab only; `backend/.env` stays gitignored and is never committed |
 
 ---
 

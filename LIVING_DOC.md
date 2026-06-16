@@ -1,6 +1,6 @@
 # CAiS Command Centre — Living Project Status
 
-Updated: 2026-06-16
+Updated: 2026-06-17
 
 ## Purpose
 - Capture business context in journal entries.
@@ -16,6 +16,7 @@ Updated: 2026-06-16
 - People tracking / relationship timeline — planned
 - Dashboard / timeline visualization — planned
 - Claude Code / MCP integration / docs sync — active
+- MCP server hosting — migrated from local Mac + ngrok to Render (complete, 2026-06-17)
 
 ## What is complete
 - FastAPI backend with PostgreSQL / optional SQLite support.
@@ -64,3 +65,18 @@ The root directory has been decluttered. Old phase-specific implementation and t
 - The phase-separated UI is implemented and working.
 - There is a current backend streaming issue: Claude API calls can block for 20-30 seconds, causing tool events to arrive in a burst instead of real time.
 - The backend needs a streaming refactor to deliver true Claude Code-style phase streaming.
+
+## MCP server hosting (2026-06-17)
+- Moved the MCP server (`backend/app/mcp/server.py`) off the local Mac + ngrok tunnel and onto **Render** as an always-on Web Service: `https://cais-mcp-server.onrender.com`.
+- Repo is now on GitHub at `zanemoore575/cais-command-centre` (private) — required for Render's GitHub-based deploy.
+- Code changes made to support hosting:
+  - Server now reads `PORT` (Render-injected) ahead of `MCP_PUBLIC_URL`/`MCP_PORT`, and defaults host to `0.0.0.0`.
+  - Added a `/health` route for Render's health check.
+  - Pinned `backend/runtime.txt` to `python-3.12.7` (also set as `PYTHON_VERSION` env var in Render — needed because pydantic-core had no prebuilt wheel for the Python 3.14 Render defaulted to).
+  - Unpinned `pydantic==2.10.2` to `pydantic>=2.11.0` in `backend/requirements.txt` — the old pin conflicted with `mcp>=1.27`'s requirement of `pydantic>=2.11.0`.
+- Render config: Root Directory `backend`, Build Command `pip install -r requirements.txt`, Start Command `python -m app.mcp.server`, Starter instance (not Free — avoids cold-start spin-down), single instance (no autoscaling, since OAuth/session state is in-memory).
+- Secrets (`SUPABASE_SERVICE_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_CLIENT_SECRET`, etc.) live only in Render's Environment tab, never committed — `backend/.env` stays gitignored.
+- Google OAuth client's authorized redirect URIs now include `https://cais-mcp-server.onrender.com/oauth/google/callback` alongside the old ngrok one.
+- claude.ai connector repointed at `https://cais-mcp-server.onrender.com/mcp`; verified `get_recent_memories`, `get_tasks`, `search_memories` all working end-to-end.
+- Local MCP server process and ngrok tunnel have been stopped — the Mac is no longer required for the MCP connector to work.
+- Known pre-existing item (unrelated to this migration): an open task already in the system notes that Supabase credentials may need updating to point at the newer Supabase project — worth checking if `search_memories` ever seems to be missing entries.

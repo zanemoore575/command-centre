@@ -23,6 +23,7 @@ Personal AI system for capturing business context, extracting insights, and trac
 - People tracking / relationships: planned
 - Dashboard / timeline: planned
 - Claude Code / MCP integration: active
+- MCP server hosting: live on Render (`https://cais-mcp-server.onrender.com`), no longer dependent on the local Mac/ngrok
 
 ## Architecture overview
 - Backend: FastAPI + SQLAlchemy + Alembic
