@@ -22,8 +22,9 @@
 |----------|------|---------|
 | **Agentic Bot V2** | `telegram_cais_bot_workflow_agentic_v2.json` | **PRIMARY** - Claude Sonnet 4.5 with specialist agents and 5 tools |
 | Timeout Handler | `telegram_session_timeout_handler_workflow.json` | Auto-saves inactive sessions (30 min timeout), runs every 5 min |
-| Ingestion Pipeline | `ingest-workflow.json` | Extracts entities, decisions, reflections from transcripts |
+| Ingestion Pipeline | `ingest-workflow.json` | Extracts entities, decisions, reflections from transcripts. Two entry points: `/webhook/ingest-conversation` (voice path, inserts a new row) and `/webhook/ingest-pending` (poller path, updates an existing row in place) — both converge into the same extraction/embedding nodes |
 | Shortcut Voice | `shortcut_voicenote_workflow.json` | iOS Shortcut voice note ingestion |
+| **Pending Memory Poller** | `pending-memory-poller-workflow.json` | **NEW (2026-06-17)** - Runs every 2 min, finds any `memories` row stuck at `status='pending'` (e.g. from `log_memory`), claims it, and routes it into the ingestion pipeline via `/webhook/ingest-pending`. Makes ingestion source-agnostic — any future write path just needs to insert with `status: pending` |
 
 ### AI Agent Tools (n8n Workflows)
 
@@ -182,7 +183,8 @@ agent_search_by_theme(theme_keywords TEXT, limit_count INT) → TABLE
 |---------|-----|---------|
 | n8n Instance | `https://n8n-service-8act.onrender.com` | Workflow hosting |
 | Tool Webhooks | `/webhook/tool-*` | AI Agent tool endpoints |
-| Ingest Webhook | `/webhook/ingest-conversation` | Extraction pipeline trigger |
+| Ingest Webhook | `/webhook/ingest-conversation` | Extraction pipeline trigger (voice path — inserts new row) |
+| Ingest Webhook (pending) | `/webhook/ingest-pending` | Extraction pipeline trigger (poller path — updates existing row) |
 
 ---
 
@@ -311,6 +313,27 @@ Send Response node uses `parse_mode: "HTML"`
 15. Session status → 'completed' or 'timed_out'
 ```
 
+### Claude write flow (`log_memory` MCP tool) — fixed 2026-06-17
+```
+1. Claude calls log_memory(content) via the MCP server
+2. tool_log_memory() inserts directly into `memories` (status='pending')
+   — MCP server has no n8n credentials, so it cannot call the ingest
+     webhook itself; it only ever writes the row
+3. Pending Memory Poller (runs every 2 min) selects status='pending' rows
+4. Poller immediately sets status='claimed' (closes the race window —
+   n8n webhooks ack instantly, so without this a slow extraction run
+   could get picked up twice by the next poll)
+5. Poller POSTs {memory_id, transcript, title, source} to
+   /webhook/ingest-pending
+6. ingest-workflow.json's "Update Memory To Extracting" node updates the
+   SAME row (status='extracting') instead of inserting a duplicate
+7. Same extraction/embedding nodes as the voice path run
+8. Memory status → 'completed', embeddings populated
+```
+Voice notes and Claude writes now both terminate in the same extraction
+pipeline — the only difference is which webhook gets called and whether
+the row is inserted (voice) or updated in place (Claude/poller).
+
 ---
 
 ## Files in This Project
@@ -320,7 +343,9 @@ AI_Brain_Ingest/
 ├── telegram_cais_bot_workflow_agentic_v2.json  # PRIMARY: Agentic bot workflow
 ├── telegram_session_timeout_handler_workflow.json
 ├── ingest-workflow.json
+├── pending-memory-poller-workflow.json         # NEW: picks up any status='pending' row
 ├── shortcut_voicenote_workflow.json
+├── backfill_embeddings.py                      # NEW: one-time embedding backfill script
 ├── supabase_agent_tools.sql                    # 10 agent tool RPC functions
 ├── agent_discovery_function.sql                # NEW: Discovery tool SQL
 ├── agent_system_prompt.md                      # System prompt for agent
@@ -349,6 +374,23 @@ AI_Brain_Ingest/
 ---
 
 ## Recent Achievements (Changelog)
+
+### 2026-06-17: Fixed write/ingest path for Claude (`log_memory`) writes
+
+**Problem Solved**: Memories written via Claude's `log_memory` MCP tool (`backend/app/mcp/supabase_tools.py`) inserted directly into `memories` with `status='pending'` but nothing ever called the n8n extraction webhook — only the voice-note path did. Pending rows sat unprocessed forever: no entities/themes/embeddings, invisible to `get_recent_memories` and `search_memories`. This was also the root cause of `search_memories` appearing to return no results for real content (e.g. "Jake") — affected memories simply never reached `status='completed'`.
+
+**Solution Implemented**:
+1. **New `pending-memory-poller-workflow.json`** — schedule-triggered every 2 min, selects any `memories` row with `status='pending'`, claims it (`status='claimed'`) to avoid double-processing, then calls the extraction pipeline. Source-agnostic by design: works for `log_memory`, voice notes, or any future write path without per-source code changes.
+2. **New webhook entry point in `ingest-workflow.json`** (`Webhook Pending` → `Update Memory To Extracting`) — updates the existing row in place instead of inserting a duplicate, then reuses the same 7 extraction branches + embedding step the voice path already used. The original `/webhook/ingest-conversation` voice path is unchanged.
+3. **Fixed embedding bug** — "Insert Embeddings" node was `JSON.stringify`-ing the embedding array before writing to the pgvector column; now passes the raw array (matches the working voice-path node).
+4. **`backfill_embeddings.py`** — one-time script to embed existing `completed` memories that had `embeddings: null`.
+
+**Verified**: test memory went `pending` → fully extracted → embedded → searchable within minutes. Pre-existing search gaps (e.g. "Jake") resolved. Embedding count went from ~2 to parity with completed-memory count.
+
+**Key Files Changed**:
+- `Workflows/n8n workflows/ingest-workflow.json` (UPDATED — new webhook entry point + embedding fix)
+- `Workflows/n8n workflows/pending-memory-poller-workflow.json` (NEW)
+- `Workflows/backfill_embeddings.py` (NEW)
 
 ### 2026-01-22: Hierarchical Specialist Agent System + Living Context
 
@@ -428,6 +470,10 @@ AI_Brain_Ingest/
 1. Memories exist with `embeddings` column populated (note: plural!)
 2. `match_threshold` isn't too high (try 0.3-0.5)
 3. pgvector extension is enabled in Supabase
+4. The memory's `status` actually reached `'completed'` — `agent_search_by_theme` and `agent_get_recent_memories` both filter on `status='completed'`. If a memory is stuck at `'pending'`, check that the Pending Memory Poller workflow is active in n8n and that `/webhook/ingest-pending` is reachable (see 2026-06-17 changelog entry)
+
+### Issue: A memory written via `log_memory` never shows up in search or recent memories
+**Solution**: `log_memory` only inserts the row (`status='pending'`) — it does not call the ingest webhook directly. Confirm the `pending-memory-poller-workflow.json` workflow is **active** in n8n; it runs every 2 minutes and is what actually triggers extraction for these rows. Check its execution history for failures if a memory has been stuck at `'pending'` or `'claimed'` for more than a few minutes.
 
 ### Issue: Agent gives up too quickly on searches
 **Solution**: Update system prompt with thorough search behavior (see `agent_system_prompt.md`)
@@ -477,10 +523,11 @@ I need a full status update. First, show me what data you have access to - what 
 
 ## Last Updated
 
-**Date**: 2026-01-22
+**Date**: 2026-06-17
 **By**: Claude Code
 **Changes**:
-- Updated architecture to hierarchical specialist agent system
-- Added Living Context Document for persistent context
-- Switched to Claude Sonnet 4.5 (no extended thinking)
-- Added Telegram HTML formatting conversion
+- Fixed write/ingest path so `log_memory` (Claude) writes get processed like voice notes
+- Added `pending-memory-poller-workflow.json` (source-agnostic ingestion trigger)
+- Added second webhook entry point to `ingest-workflow.json` (update-in-place, no duplicate rows)
+- Fixed embedding `JSON.stringify` bug in ingest pipeline
+- Added `backfill_embeddings.py` for one-time embedding backfill

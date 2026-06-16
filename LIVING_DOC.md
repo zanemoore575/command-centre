@@ -66,6 +66,16 @@ The root directory has been decluttered. Old phase-specific implementation and t
 - There is a current backend streaming issue: Claude API calls can block for 20-30 seconds, causing tool events to arrive in a burst instead of real time.
 - The backend needs a streaming refactor to deliver true Claude Code-style phase streaming.
 
+## Write/ingest path fix (2026-06-17)
+- **Problem:** memories written via Claude's `log_memory` MCP tool (`backend/app/mcp/supabase_tools.py`) were inserted into Supabase with `status: pending` but nothing ever triggered the n8n extraction pipeline — only the voice-note path called the ingest webhook. Pending rows stayed unprocessed forever: no entities/decisions/themes extracted, no embedding, invisible to `get_recent_memories` and `search_memories`.
+- **Fix (source-agnostic, DB-driven):**
+  - New n8n workflow `Workflows/n8n workflows/pending-memory-poller-workflow.json` — runs every 2 minutes, selects `memories` where `status = 'pending'`, immediately flips each to `claimed` (avoids double-processing since n8n webhooks ack before the workflow finishes), then POSTs to a new `/webhook/ingest-pending` endpoint.
+  - `Workflows/n8n workflows/ingest-workflow.json` — added a second entry point (`Webhook Pending` → `Update Memory To Extracting`) that updates the existing row in place instead of inserting a duplicate, then flows into the same extraction/embedding nodes the voice path already uses. The original `/webhook/ingest-conversation` path is untouched.
+  - Also fixed a real embedding bug found along the way: the "Insert Embeddings" node was `JSON.stringify`-ing the embedding array before writing to the pgvector `embeddings` column; changed to pass the raw array, matching the working voice-path pattern.
+  - Added `Workflows/backfill_embeddings.py` — one-time script to embed existing `completed` memories that had `embeddings: null`. Run once; not part of the ongoing pipeline.
+- **Now true for any future write source:** anything inserted into `memories` with `status: pending` gets picked up automatically — no per-source code changes needed (e.g. `log_memory` itself didn't need to change).
+- **Verified live (2026-06-17):** test memory 217 went `pending` → fully extracted (theme, entities, strategic insights) → embedded → returned by both `search_memories` and `get_recent_memories`. `search_memories("Jake")` confirmed returning 9 pre-existing memories. `discover_database` showed embeddings count (210) at parity with completed memories (202), up from ~2 before the fix.
+
 ## MCP server hosting (2026-06-17)
 - Moved the MCP server (`backend/app/mcp/server.py`) off the local Mac + ngrok tunnel and onto **Render** as an always-on Web Service: `https://cais-mcp-server.onrender.com`.
 - Repo is now on GitHub at `zanemoore575/cais-command-centre` (private) — required for Render's GitHub-based deploy.
@@ -79,4 +89,4 @@ The root directory has been decluttered. Old phase-specific implementation and t
 - Google OAuth client's authorized redirect URIs now include `https://cais-mcp-server.onrender.com/oauth/google/callback` alongside the old ngrok one.
 - claude.ai connector repointed at `https://cais-mcp-server.onrender.com/mcp`; verified `get_recent_memories`, `get_tasks`, `search_memories` all working end-to-end.
 - Local MCP server process and ngrok tunnel have been stopped — the Mac is no longer required for the MCP connector to work.
-- Known pre-existing item (unrelated to this migration): an open task already in the system notes that Supabase credentials may need updating to point at the newer Supabase project — worth checking if `search_memories` ever seems to be missing entries.
+- Known item noted at the time: `search_memories` sometimes appeared to be missing entries. Root cause turned out to be the write/ingest path, not credentials — see "Write/ingest path fix (2026-06-17)" above.

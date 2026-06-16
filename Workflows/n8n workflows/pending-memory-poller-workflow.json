@@ -1,0 +1,157 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 2
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -160,
+        -416
+      ],
+      "id": "c1d2e3f4-a5b6-4789-9012-3456789abcde",
+      "name": "Every 2 Minutes"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "memories",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "pending"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        80,
+        -416
+      ],
+      "id": "d2e3f4a5-b6c7-4890-1234-56789abcdef0",
+      "name": "Get Pending Memories",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "memories",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "claimed"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        200,
+        -416
+      ],
+      "id": "f4a5b6c7-d8e9-4012-3456-789abcdef012",
+      "name": "Claim Memory (set claimed)",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n-service-8act.onrender.com/webhook/ingest-pending",
+        "sendHeaders": false,
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"memory_id\": {{ $json.id }},\n  \"transcript\": {{ JSON.stringify($json.transcript) }},\n  \"title\": {{ JSON.stringify($json.title || ('Memory ' + $json.id)) }},\n  \"source\": {{ JSON.stringify($json.source) }}\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        440,
+        -416
+      ],
+      "id": "e3f4a5b6-c7d8-4901-2345-6789abcdef01",
+      "name": "Trigger Ingest For Pending Memory"
+    }
+  ],
+  "connections": {
+    "Every 2 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Pending Memories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pending Memories": {
+      "main": [
+        [
+          {
+            "node": "Claim Memory (set claimed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim Memory (set claimed)": {
+      "main": [
+        [
+          {
+            "node": "Trigger Ingest For Pending Memory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cc5c207f30420397d72654602d23c6e46b37dbe3ec8fdea2f1f84f2b3c8281fa"
+  }
+}

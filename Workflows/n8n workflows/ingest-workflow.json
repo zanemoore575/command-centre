@@ -409,7 +409,7 @@
           "fieldValues": [
             {
               "fieldId": "embeddings",
-              "fieldValue": "={{ JSON.stringify($json.data[0].embedding) }}"
+              "fieldValue": "={{ $json.data[0].embedding }}"
             },
             {
               "fieldId": "summary",
@@ -480,7 +480,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Get memory_id - try both possible node names\nlet memoryId, title;\n\ntry {\n  memoryId = $('Create a row').first().json.id;\n} catch (e) {\n  try {\n    memoryId = $('Store Base Memory').first().json.id;\n  } catch (e2) {\n    throw new Error('Could not find memory ID node');\n  }\n}\n\ntry {\n  title = $('Webhook').first().json.body.title;\n} catch (e) {\n  title = 'Untitled';\n}\n\n// Process merged LLM outputs\nlet entities = [], decisions = [], insights = [], reflections = [];\nlet strategic = [], tasks = [], theme = {};\n\nfor (const item of $input.all()) {\n  try {\n    let textData = null;\n    \n    // Your structure: { output: [{ content: [{ text: {...} }] }] }\n    if (item.json.output?.[0]?.content?.[0]?.text) {\n      textData = item.json.output[0].content[0].text;\n    }\n    \n    if (!textData) continue;\n    \n    // Route based on what keys exist\n    if (textData.entities) entities = textData.entities;\n    if (textData.decisions) decisions = textData.decisions;\n    if (textData.reflections) reflections = textData.reflections;\n    if (textData.tasks) tasks = textData.tasks;\n    if (textData.main_theme) theme = textData;\n    if (textData.insights?.length > 0) {\n      // Distinguish customer insights from strategic insights\n      if (textData.insights[0].customer_name !== undefined) {\n        insights = textData.insights;\n      } else {\n        strategic = textData.insights;\n      }\n    }\n  } catch (e) {\n    console.log('Parse error:', e.message);\n  }\n}\n\nreturn [{\n  json: { memory_id: memoryId, title, entities, decisions, insights, reflections, strategic, tasks, theme }\n}];"
+        "jsCode": "// Get memory_id - try all possible entry-point nodes\nlet memoryId, title;\n\ntry {\n  memoryId = $('Create a row').first().json.id;\n} catch (e) {\n  try {\n    memoryId = $('Store Base Memory').first().json.id;\n  } catch (e2) {\n    try {\n      memoryId = $('Update Memory To Extracting').first().json.id;\n    } catch (e3) {\n      throw new Error('Could not find memory ID node');\n    }\n  }\n}\n\ntry {\n  title = $('Webhook').first().json.body.title;\n} catch (e) {\n  try {\n    title = $('Webhook Pending').first().json.body.title || 'Untitled';\n  } catch (e2) {\n    title = 'Untitled';\n  }\n}\n\n// Process merged LLM outputs\nlet entities = [], decisions = [], insights = [], reflections = [];\nlet strategic = [], tasks = [], theme = {};\n\nfor (const item of $input.all()) {\n  try {\n    let textData = null;\n    \n    // Your structure: { output: [{ content: [{ text: {...} }] }] }\n    if (item.json.output?.[0]?.content?.[0]?.text) {\n      textData = item.json.output[0].content[0].text;\n    }\n    \n    if (!textData) continue;\n    \n    // Route based on what keys exist\n    if (textData.entities) entities = textData.entities;\n    if (textData.decisions) decisions = textData.decisions;\n    if (textData.reflections) reflections = textData.reflections;\n    if (textData.tasks) tasks = textData.tasks;\n    if (textData.main_theme) theme = textData;\n    if (textData.insights?.length > 0) {\n      // Distinguish customer insights from strategic insights\n      if (textData.insights[0].customer_name !== undefined) {\n        insights = textData.insights;\n      } else {\n        strategic = textData.insights;\n      }\n    }\n  } catch (e) {\n    console.log('Parse error:', e.message);\n  }\n}\n\nreturn [{\n  json: { memory_id: memoryId, title, entities, decisions, insights, reflections, strategic, tasks, theme }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1248,6 +1248,63 @@
       ],
       "id": "fe6e6c47-01d8-4900-a023-c3aa20155c2a",
       "name": "Prepare Theme for Embedding"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ingest-pending",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        2016,
+        4400
+      ],
+      "id": "f1a2b3c4-d5e6-4789-9abc-def012345678",
+      "name": "Webhook Pending",
+      "webhookId": "f1a2b3c4-d5e6-4789-9abc-def012345679"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "memories",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.body.memory_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "extracting"
+            },
+            {
+              "fieldId": "transcript",
+              "fieldValue": "={{ $json.body.transcript }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        4400
+      ],
+      "id": "a2b3c4d5-e6f7-4890-abcd-ef0123456789",
+      "name": "Update Memory To Extracting",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
     }
   ],
   "connections": {
@@ -1702,6 +1759,58 @@
         [
           {
             "node": "Generate Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Pending": {
+      "main": [
+        [
+          {
+            "node": "Update Memory To Extracting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Memory To Extracting": {
+      "main": [
+        [
+          {
+            "node": "Conversation Theme Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Action Items",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Strategic Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Personal Reflections",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Customer Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Business Decisions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Entities",
             "type": "main",
             "index": 0
           }

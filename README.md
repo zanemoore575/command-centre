@@ -22,7 +22,7 @@ Personal AI system for capturing business context, extracting insights, and trac
 - Phase-separated chat streaming UX: complete
 - People tracking / relationships: planned
 - Dashboard / timeline: planned
-- Claude Code / MCP integration: active
+- Claude Code / MCP integration: active — writes via `log_memory` and voice notes both flow through the same ingest pipeline (fixed 2026-06-17)
 - MCP server hosting: live on Render (`https://cais-mcp-server.onrender.com`), no longer dependent on the local Mac/ngrok
 
 ## Architecture overview
