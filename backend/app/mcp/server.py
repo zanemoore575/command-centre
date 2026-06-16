@@ -84,6 +84,9 @@ from app.mcp.supabase_tools import (
     tool_update_task,
     tool_create_task,
     tool_merge_tasks,
+    tool_save_artifact,
+    tool_search_artifacts,
+    tool_get_artifact,
 )
 
 # ---------------------------------------------------------------------------
@@ -365,6 +368,85 @@ def merge_tasks(keep_id: str, merge_ids: list[str]) -> dict:
         merge_ids: UUIDs of the duplicate tasks to fold into keep_id.
     """
     return tool_merge_tasks(keep_id=keep_id, merge_ids=merge_ids)
+
+
+@mcp.tool()
+def save_artifact(
+    title: str,
+    kind: str = "authored",
+    format: str = "md",
+    content: Optional[str] = None,
+    file_base64: Optional[str] = None,
+    tags: Optional[list[str]] = None,
+    entity_name: Optional[str] = None,
+    artifact_id: Optional[str] = None,
+) -> dict:
+    """
+    Save a document Zane and Claude worked on — a proposal, guide, schema, or
+    any other deliverable — so it can be found and pulled back up in a later
+    session, exactly as it was saved.
+
+    Two kinds of artifact:
+    - 'authored' (default): something Claude wrote/edited in this chat. Pass
+      the full text as `content`. This is the canonical, editable version —
+      recall it, edit it, and call save_artifact again with the same
+      artifact_id to update it in place (e.g. after Zane requests changes).
+    - 'uploaded': a real file Zane shared (e.g. a client's PDF). Pass the raw
+      bytes base64-encoded as `file_base64`.
+
+    To UPDATE an existing artifact (not create a duplicate), pass its
+    artifact_id from a prior search_artifacts/get_artifact call. Without an
+    artifact_id, this checks for an exact title+entity match first — if one
+    exists, it returns that artifact's id instead of silently duplicating it.
+
+    Args:
+        title: Human-readable name, used to find this artifact again later.
+        kind: 'authored' (Claude-made, default) or 'uploaded' (a real file).
+        format: 'md', 'txt', 'pdf', or 'docx'.
+        content: The canonical text content, for authored artifacts.
+        file_base64: Base64-encoded file bytes, for uploaded/binary artifacts.
+        tags: Free-text tags for topical search (e.g. ['proposal', 'pricing']).
+        entity_name: Person/company/project this belongs to, e.g. 'Jake'.
+        artifact_id: Pass this to overwrite an existing artifact in place.
+    """
+    return tool_save_artifact(
+        title=title,
+        kind=kind,
+        format=format,
+        content=content,
+        file_base64=file_base64,
+        tags=tags,
+        entity_name=entity_name,
+        artifact_id=artifact_id,
+    )
+
+
+@mcp.tool()
+def search_artifacts(query: Optional[str] = None) -> list[dict]:
+    """
+    Find saved documents by title, tag, entity, or content. Use this when
+    Zane references something he and Claude worked on before — a proposal,
+    guide, or any other saved deliverable.
+
+    Args:
+        query: Search term (e.g. 'Jake proposal', 'Phase 1'). Omit to list recent artifacts.
+    """
+    return tool_search_artifacts(query=query)
+
+
+@mcp.tool()
+def get_artifact(artifact_id: str, include_file: bool = False) -> dict:
+    """
+    Get the full content of a saved artifact — exactly as it was last saved.
+    Use this after search_artifacts to pull up the real text to read,
+    discuss, or continue editing.
+
+    Args:
+        artifact_id: The artifact's UUID, from search_artifacts.
+        include_file: Set true to also get the raw file bytes (base64) — only
+            needed when Zane wants the literal original file back, not just its content.
+    """
+    return tool_get_artifact(artifact_id=artifact_id, include_file=include_file)
 
 
 # ---------------------------------------------------------------------------
