@@ -1,0 +1,125 @@
+{
+  "name": "Tool - Search by Theme",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tool-search-by-theme",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [340, 300],
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "webhookId": "tool-search-by-theme"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wwqdkiphfpdczgmnxxrt.supabase.co/rest/v1/rpc/agent_search_by_theme",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "params=single-object"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ theme_keywords: $json.body?.theme_keywords || '', limit_count: $json.body?.limit_count || 10 }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 300],
+      "id": "call-supabase",
+      "name": "Call Supabase RPC",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst statusCode = response.statusCode || 200;\nconst body = response.body;\nconst searchKeywords = $('Webhook Trigger').first().json.body?.theme_keywords || '';\n\nif (statusCode >= 400) {\n  return [{\n    json: {\n      success: false,\n      error: `Supabase returned ${statusCode}`,\n      details: body,\n      tool: 'search_by_theme'\n    }\n  }];\n}\n\nlet results = [];\ntry {\n  if (typeof body === 'string') {\n    results = JSON.parse(body);\n  } else if (Array.isArray(body)) {\n    results = body;\n  } else if (body && typeof body === 'object') {\n    results = body.data || body.results || [body];\n  }\n} catch (e) {\n  results = [];\n}\n\nconst formatted = results.map(r => ({\n  id: r.id,\n  title: r.title,\n  summary: r.summary,\n  source: r.source,\n  themes: r.themes,\n  created_at: r.created_at\n}));\n\nreturn [{\n  json: {\n    success: true,\n    count: formatted.length,\n    search_keywords: searchKeywords,\n    results: formatted,\n    tool: 'search_by_theme',\n    message: formatted.length > 0 \n      ? `Found ${formatted.length} memories related to \"${searchKeywords}\"` \n      : `No memories found with theme \"${searchKeywords}\". Try broader keywords or use Semantic Search.`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 300],
+      "id": "format-response",
+      "name": "Format Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1000, 300],
+      "id": "respond-webhook",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Call Supabase RPC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Supabase RPC": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

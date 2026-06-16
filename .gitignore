@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Env files (secrets)
+.env
+.env.*
+!.env.example
+
+# Node / frontend
+node_modules/
+.next/
+out/
+build/
+.pnp
+.pnp.js
+*.tsbuildinfo
+next-env.d.ts
+
+# Databases / logs
+*.db
+*.log
+
+# OS
+.DS_Store
+
+# Large data dumps (not needed in repo)
+conversations.json
+
+# Claude Code local state
+.claude/

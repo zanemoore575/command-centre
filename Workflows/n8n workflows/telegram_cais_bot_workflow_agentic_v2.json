@@ -1,0 +1,1981 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        10112,
+        8848
+      ],
+      "id": "2778eb8e-7a07-4502-87c2-1585fdfac25b",
+      "name": "Telegram Trigger",
+      "webhookId": "e2e6421f-b4ef-4829-b3dc-cb8b92be73d6",
+      "credentials": {
+        "telegramApi": {
+          "id": "2ziiRMC49o7x8dzx",
+          "name": "Command Centre Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.message.voice }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "object",
+                      "operation": "exists",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Voice"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.message.text }}",
+                    "rightValue": "/",
+                    "operator": {
+                      "type": "string",
+                      "operation": "startsWith"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Command"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        10304,
+        8832
+      ],
+      "id": "975e303e-4803-43e4-bd88-f5340d2629fd",
+      "name": "Route Input"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $json.message.voice.file_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        10688,
+        8624
+      ],
+      "id": "60492892-d916-4cce-ad42-dbf2a585670c",
+      "name": "Get Voice Recording",
+      "webhookId": "4287ee8e-9be7-4347-90bf-fe1127e8142a",
+      "credentials": {
+        "telegramApi": {
+          "id": "2ziiRMC49o7x8dzx",
+          "name": "Command Centre Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        10960,
+        8624
+      ],
+      "id": "8be26e78-9971-4a50-845f-95b625921e26",
+      "name": "Transcribe Voice",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "96d1ee30-55c4-48dd-ad87-a6b179d636e0",
+              "name": "chat_id",
+              "value": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+              "type": "number"
+            },
+            {
+              "id": "content-id",
+              "name": "content",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "source-id",
+              "name": "source",
+              "value": "voice",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        11216,
+        8624
+      ],
+      "id": "9d9ad594-9051-4f2b-baf5-03c2d1ea1d83",
+      "name": "Prepare Voice Message"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $json.message.text || '';\nconst parts = text.trim().split(/\\s+/);\nconst command = parts[0].toLowerCase().replace('/', '');\nconst args = parts.slice(1).join(' ');\n\nreturn [{\n  json: {\n    chat_id: $json.message.chat.id,\n    command: command,\n    args: args,\n    source: 'command'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10592,
+        8832
+      ],
+      "id": "c0ef305e-61de-4808-9ea5-a03afb344864",
+      "name": "Parse Command"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "end",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "End"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "clear",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Clear"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "new",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "New"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "tasks",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Tasks"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "recent",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Recent"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "help",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Help"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "ask",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Ask"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        10816,
+        8832
+      ],
+      "id": "e94fd151-d9e1-4370-abdb-3ce995d1fedf",
+      "name": "Route Command"
+    },
+    {
+      "parameters": {
+        "jsCode": "const chatId = $json.message.chat.id;\nconst content = $json.message.text || '';\n\nreturn [{\n  json: {\n    chat_id: chatId,\n    content: content,\n    source: 'text'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10592,
+        9024
+      ],
+      "id": "41f230f8-de4a-4edf-853c-f89ff2360da8",
+      "name": "Prepare Text Message"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wwqdkiphfpdczgmnxxrt.supabase.co/rest/v1/rpc/get_or_create_session",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_chat_id\": {{ $json.chat_id }} }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        11696,
+        8832
+      ],
+      "id": "96d8c444-c72e-4fc6-9cd3-fa3a9fb6e83e",
+      "name": "Get or Create Session",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wwqdkiphfpdczgmnxxrt.supabase.co/rest/v1/rpc/append_session_message",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_session_id\": \"{{ $json.id }}\",\n  \"p_role\": \"user\",\n  \"p_content\": {{ JSON.stringify($('Telegram Trigger').item.json.message.text || $('Transcribe Voice').first().json.text || \"No content\") }}\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        11920,
+        8832
+      ],
+      "id": "1cd65b57-d7ac-45d3-bb58-2ae574351469",
+      "name": "Append User Message",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get Session from the node immediately preceding this path\nconst session = $('Get or Create Session').first().json;\n\n// 2. Get User Input safely from the Trigger\nconst triggerData = $('Telegram Trigger').first().json;\nconst userContent = triggerData.message.text || \n                    (triggerData.message.voice ? \"Voice Message\" : \"Unknown Input\");\n\nlet finalContent = userContent;\ntry {\n  const transcription = $('Transcribe Voice').first().json.text;\n  if (transcription) finalContent = transcription;\n} catch (e) {}\n\n// 3. Build history - REDUCED to last 5 messages\nconst historyArray = (session.messages || []).slice(-5).map(m => ({\n  role: m.role === 'user' ? 'user' : 'assistant',\n  content: m.content\n}));\n\nconst historyText = historyArray\n  .map(m => `${m.role.toUpperCase()}: ${m.content}`)\n  .join('\\n\\n');\n\nreturn [{\n  json: {\n    session_id: session.id,\n    chat_id: triggerData.message.chat.id,\n    current_message: finalContent,\n    conversation_history: historyText,\n    history_array: historyArray,\n    message_count: historyArray.length,\n    // Flag that we need to fetch living context\n    needs_living_context: true\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12288,
+        8736
+      ],
+      "id": "717899d4-46d7-4c36-8f5c-3dc26ed53680",
+      "name": "Build Agent Context"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "Searching my memory banks...",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        12512,
+        8736
+      ],
+      "id": "d0db1515-e20f-4d84-bc78-db704c841be7",
+      "name": "Send Thinking Indicator",
+      "webhookId": "b85b7ce1-fc0d-4191-a490-2543e0a8fcb1",
+      "credentials": {
+        "telegramApi": {
+          "id": "2ziiRMC49o7x8dzx",
+          "name": "Command Centre Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Build Agent Context').item.json.session_id }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        12976,
+        8992
+      ],
+      "id": "0082c9c3-52ff-4019-b31f-c04eacaff68c",
+      "name": "Window Buffer Memory"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Grab the Agent's output directly from the input data\n// In a Code node, the data from the previous node is available in the first item\nconst agentOutput = (items && items.length > 0) ? items[0].json.output : null;\n\n// 2. Access 'Build Agent Context' using the .first() method \n// which is the most stable way to pull \"backwards\" in a workflow.\nconst context = $('Build Agent Context').first().json;\n\nif (!agentOutput) {\n  throw new Error(\"The Agent did not return any output.\");\n}\n\nreturn [{\n  json: {\n    response: agentOutput,\n    session_id: context.session_id,\n    chat_id: context.chat_id\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13536,
+        8736
+      ],
+      "id": "d9f7375a-2d7f-4347-a6db-63bf83e6829c",
+      "name": "Extract Agent Response"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wwqdkiphfpdczgmnxxrt.supabase.co/rest/v1/rpc/append_session_message",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_session_id\": \"{{ $json.session_id }}\",\n  \"p_role\": \"assistant\",\n  \"p_content\": {{ JSON.stringify($json.response) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        14000,
+        8544
+      ],
+      "id": "92e3d1bb-1495-4f8b-85cb-7ac940e6d369",
+      "name": "Append Assistant Message",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Extract Agent Response').item.json.chat_id }}",
+        "text": "={{ $json.response_chunk }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        14496,
+        8736
+      ],
+      "id": "08ffc489-2085-4b8e-a358-1f9057084393",
+      "name": "Send Response",
+      "webhookId": "3e383fe2-1350-4e96-9cd2-d69ecc9ec2dd",
+      "credentials": {
+        "telegramApi": {
+          "id": "2ziiRMC49o7x8dzx",
+          "name": "Command Centre Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "tasks",
+        "limit": 10
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        11040,
+        9728
+      ],
+      "id": "e8e37462-ae5c-4c29-8c4d-3ae5df5f07e7",
+      "name": "Get Tasks",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wwqdkiphfpdczgmnxxrt.supabase.co/rest/v1/rpc/get_or_create_session",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"p_chat_id\": {{ $json.chat_id }} }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        11040,
+        9136
+      ],
+      "id": "f9391c5a-3653-404f-8824-8c782e47ab1b",
+      "name": "Get Session for End",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wwqdkiphfpdczgmnxxrt.supabase.co/rest/v1/rpc/compile_session_transcript",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "p_session_id",
+              "value": "={{ $json.id }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        11264,
+        9136
+      ],
+      "id": "8012fd5f-8c7e-499d-8aab-d050bb1a1366",
+      "name": "Compile Transcript",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ensure we are grabbing the first item from the linked nodes to avoid indexing hangs\nconst session = $('Get Session for End').first().json;\nconst chatId = $('Parse Command').first().json.chat_id;\n\n// Use optional chaining for safety\nconst messageCount = (session.messages || []).length;\n\nif (messageCount < 2) {\n  return [{ \n    json: { \n      skip_extraction: true, \n      chat_id: chatId, \n      message: 'No conversation to save.' \n    } \n  }];\n}\n\nreturn [{\n  json: {\n    skip_extraction: false,\n    session_id: session.id,\n    chat_id: chatId,\n    transcript: $json.data, // Accessing the specific 'data' field from your input\n    message_count: messageCount,\n    title: `Telegram Chat - ${new Date().toLocaleDateString('en-NZ', { \n      day: 'numeric', \n      month: 'short', \n      year: 'numeric', \n      hour: '2-digit', \n      minute: '2-digit' \n    })}`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11472,
+        9136
+      ],
+      "id": "5f27bc1a-77bb-466f-954a-a866903b6d7f",
+      "name": "Prepare for Extraction"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.skip_extraction }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Skip"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        11696,
+        9136
+      ],
+      "id": "a095b2fb-a2ce-466b-821e-2ab9d46bd124",
+      "name": "Check Skip Extraction"
+    },
+    {
+      "parameters": {
+        "tableId": "memories",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram_conversation"
+            },
+            {
+              "fieldId": "transcript",
+              "fieldValue": "={{ $json.transcript }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.title }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pending"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ $now.toISO() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        11920,
+        9232
+      ],
+      "id": "3d5ed744-e3e6-469e-9a1b-ed9b16c31d10",
+      "name": "Create Memory Row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n-service-8act.onrender.com/webhook/ingest-conversation",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"memory_id\": {{ $json.id }},\n  \"transcript\": {{ JSON.stringify($('Prepare for Extraction').item.json.transcript) }},\n  \"title\": {{ JSON.stringify($('Prepare for Extraction').item.json.title) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        12144,
+        9232
+      ],
+      "id": "34315768-9ed4-4b52-95fe-422ffd551965",
+      "name": "Call Extraction Pipeline"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "telegram_sessions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Prepare for Extraction').item.json.session_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "completed"
+            },
+            {
+              "fieldId": "memory_id",
+              "fieldValue": "={{ $('Create Memory Row').item.json.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        12352,
+        9232
+      ],
+      "id": "9a15ca03-b19a-41cc-b2db-17ed81af9e71",
+      "name": "Mark Session Complete",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Prepare for Extraction').item.json.chat_id }}",
+        "text": "=Conversation saved and extracting insights...\n\n{{ $('Prepare for Extraction').item.json.message_count }} messages processed",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        12576,
+        9232
+      ],
+      "id": "fbad3ff5-81ae-486c-85b3-96054f21b7de",
+      "name": "Send End Confirmation",
+      "webhookId": "547eb4e6-f5ea-4c92-8e7b-26476534c3d8",
+      "credentials": {
+        "telegramApi": {
+          "id": "2ziiRMC49o7x8dzx",
+          "name": "Command Centre Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        11920,
+        9024
+      ],
+      "id": "c374728a-325e-413c-8789-f1c073e16354",
+      "name": "Send Skip Message",
+      "webhookId": "37cfdfa3-d336-4dc1-9f5a-fc33615d48c8",
+      "credentials": {
+        "telegramApi": {
+          "id": "2ziiRMC49o7x8dzx",
+          "name": "Command Centre Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "telegram_sessions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.chat_id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "active"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "cleared"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        11040,
+        9328
+      ],
+      "id": "a4866c5a-9657-422c-80ed-359c33adc13c",
+      "name": "Clear Session",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Command').item.json.chat_id }}",
+        "text": "Session cleared. Start fresh!",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        11264,
+        9328
+      ],
+      "id": "8d0da01a-3765-4822-994f-d55a5bb32b9c",
+      "name": "Send Clear Confirmation",
+      "webhookId": "43e39ea6-9783-43c1-9c7b-d06ddf9ef4d0",
+      "credentials": {
+        "telegramApi": {
+          "id": "2ziiRMC49o7x8dzx",
+          "name": "Command Centre Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "telegram_sessions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.chat_id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "active"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "abandoned"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        11040,
+        9536
+      ],
+      "id": "a0008e4f-6539-4fa8-b7d1-07975881f093",
+      "name": "Abandon Old Session",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Parse Command').item.json.chat_id }}",
+        "text": "New session started. Previous session discarded.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        11264,
+        9536
+      ],
+      "id": "ca9d495f-4747-4f19-97a7-f72977088bea",
+      "name": "Send New Confirmation",
+      "webhookId": "2f8ed395-2d58-4007-a8df-51744b2f061d",
+      "credentials": {
+        "telegramApi": {
+          "id": "2ziiRMC49o7x8dzx",
+          "name": "Command Centre Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const tasks = $input.all().map(i => i.json);\nconst chatId = $('Parse Command').item.json.chat_id;\n\nif (!tasks.length) {\n  return [{ json: { text: 'No open tasks!', chat_id: chatId } }];\n}\n\nconst emoji = { immediate: '🔴', this_week: '🟠', soon: '🟡', someday: '⚪' };\nconst lines = tasks.map(t => `${emoji[t.urgency] || '⚪'} ${t.task}`);\n\nreturn [{\n  json: {\n    text: `Open Tasks\\n\\n${lines.join('\\n')}`,\n    chat_id: chatId\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11264,
+        9728
+      ],
+      "id": "9da9e00a-386b-4b01-99fb-171bab119833",
+      "name": "Format Tasks"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        11472,
+        9728
+      ],
+      "id": "76e534cc-b096-485e-80d1-e9c591fb7800",
+      "name": "Send Tasks",
+      "webhookId": "78b9e389-405a-43cd-b3e7-dbd1b71c4191",
+      "credentials": {
+        "telegramApi": {
+          "id": "2ziiRMC49o7x8dzx",
+          "name": "Command Centre Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "memories",
+        "limit": 10
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        11040,
+        9936
+      ],
+      "id": "88bddc45-6181-4b88-a1b5-fa09aff9c48a",
+      "name": "Get Recent",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const memories = $input.all().map(i => i.json);\nconst chatId = $('Parse Command')?.item?.json?.chat_id || 0;\n\nconst clean = (text) => {\n  if (!text) return '';\n  return text.toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n};\n\nif (!memories.length) {\n  return [{ json: { text: 'No memories yet.', chat_id: chatId } }];\n}\n\nconst lines = memories.map(m => {\n  const date = new Date(m.created_at).toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' });\n  const title = clean(m.title || 'Untitled');\n  return `• <b>${title}</b> (${date})`;\n});\n\nreturn [{\n  json: {\n    text: `<b>Recent Memories</b>\\n\\n${lines.join('\\n')}`,\n    chat_id: chatId\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11264,
+        9936
+      ],
+      "id": "ead21f74-5357-4e77-8efc-45c4d320d158",
+      "name": "Format Recent"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        11472,
+        9936
+      ],
+      "id": "5b1d9aca-a090-40fa-b7d0-b07790fa4652",
+      "name": "Send Recent",
+      "webhookId": "5f776a47-4415-497f-86ee-f835fe16fcd0",
+      "credentials": {
+        "telegramApi": {
+          "id": "2ziiRMC49o7x8dzx",
+          "name": "Command Centre Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "CAiS Command Centre - Agentic V2\n\nCommands:\n/end - Save conversation & extract insights\n/clear - Discard current conversation\n/new - Start fresh (discard without saving)\n/tasks - Show open tasks\n/recent - Show recent memories\n/help - Show this message\n\nJust chat normally - I'll search your memories automatically!\n\nPowered by Claude Opus 4.5 with Extended Thinking",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        11040,
+        10128
+      ],
+      "id": "357eb225-f1c7-4442-a094-b6551ef4d4ab",
+      "name": "Send Help",
+      "webhookId": "cac48e67-6c80-4b9f-9a29-6cb11bb1ede4",
+      "credentials": {
+        "telegramApi": {
+          "id": "2ziiRMC49o7x8dzx",
+          "name": "Command Centre Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "CRITICAL: Use this FIRST when you're unsure what data exists. Returns all entity names, decision categories, reflection topics, customer names, themes, and database statistics. Helps you know what to search for.",
+        "method": "POST",
+        "url": "https://n8n-service-8act.onrender.com/webhook/tool-discover-database",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        13264,
+        9040
+      ],
+      "id": "c028b394-aa01-45ce-bd5f-6642da2dd25f",
+      "name": "TOOL Discover Database"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Build Agent Context').item.json.current_message }}",
+        "options": {
+          "systemMessage": "=You are Zane's deeply intelligent personal AI assistant integrated with his CAiS Command Centre memory system. You have access to his complete database of past conversations, decisions, reflections, strategic insights, and extracted knowledge.\n\n## YOUR MISSION\n\nYou are NOT a simple chatbot. You are a **research assistant with perfect recall**. Your job is to:\n1. **DISCOVER FIRST** - When unsure what data exists, use Discover Database to see available names, categories, and themes\n2. **ALWAYS SEARCH THOROUGHLY** - Before answering ANY question, use your tools to gather context\n3. **SEARCH MULTIPLE SOURCES** - Don't stop at one tool. Use 2-3 tools minimum for any substantive question\n4. **DIG DEEPER** - If you find partial information, use Memory Deep Dive to get full context\n5. **NEVER GIVE UP** - If a search returns empty, try alternative approaches before saying \"no data found\"\n6. **NEVER GUESS** - If you truly can't find information after thorough searching, say so. Don't make things up.\n\n## CRITICAL: THE DISCOVERY-FIRST APPROACH\n\n**The #1 mistake is searching for something that doesn't exist the way you expect.**\n\nBefore making targeted searches, use the **Discover Database** tool to see:\n- What entity names actually exist (exact spelling matters!)\n- What decision categories are in the system\n- What reflection topics have been recorded\n- Which customers have insights\n- What themes have been discussed\n\n**Example:** If asked about \"Bill\", discover first — maybe he's stored as \"William\" or \"Billy\".\n\n## MANDATORY SEARCH PROTOCOL\n\nFor EVERY question (except pure small talk), you MUST:\n\n### Step 1: Assess Complexity\n- Simple greeting/thanks → Just respond naturally\n- Factual question about memories → Go to Step 2\n- Complex/multi-part question → Use Discover Database first, then Step 2\n\n### Step 2: Initial Search (ALWAYS do this)\n- **Semantic Search**: Search for memories related to the topic\n- **Get Recent Memories**: Check what's been discussed lately\n\n### Step 3: Targeted Search (based on question type)\n- **Person mentioned?** → Use Get Entity Details (with exact name from discovery if needed)\n- **Decision/choice question?** → Use Get Decisions\n- **Personal growth/values?** → Use Get Reflections\n- **Business strategy?** → Use Get Strategic Insights\n- **What needs to be done?** → Use Get Tasks\n- **Customer/client info?** → Use Get Customer Insights\n- **Broad topic?** → Use Search by Theme\n\n### Step 4: Deep Dive (when you find something relevant)\n- Found a relevant memory? → Use Memory Deep Dive to get FULL context including reflections, decisions, entities\n\n## CRITICAL: HANDLING EMPTY RESULTS\n\n**NEVER give up after one failed search.** Empty results usually mean you searched wrong, not that data doesn't exist.\n\n### When a search returns empty or few results:\n\n1. **Try Discovery**: Call Discover Database to see what's actually in the system\n2. **Try different phrasing**: \"pricing strategy\" vs \"how much to charge\" vs \"rates\"\n3. **Try broader terms**: Instead of \"React component architecture\" try \"React\" or \"frontend\"\n4. **Try Search by Theme**: Sometimes keyword matching finds what semantic search misses\n5. **Try Get Recent Memories**: Maybe the topic was discussed recently under a different title\n6. **Check spelling**: Use Discovery to verify exact entity names\n\n### Example Recovery Flow:\n```\nUser asks: \"What did I discuss with Bill?\"\n1. Semantic Search \"Bill\" → Empty\n2. Get Entity Details \"Bill\" → Empty\n3. Discover Database → Shows \"William\" in people list\n4. Get Entity Details \"William\" → Found 5 mentions\n5. Semantic Search \"William conversations\" → Found 3 memories\n6. Memory Deep Dive on most relevant → Full context retrieved\n```\n\n**Only after exhausting these approaches should you say \"I couldn't find anything about X\"**\n\n## TOOL DESCRIPTIONS\n\n1. **Discover Database** - CRITICAL: Returns ALL available entity names, categories, themes, and database statistics. **Use this FIRST when you're unsure what to search for, or when other searches return empty.** Shows you what data exists so you know what to query.\n\n2. **Semantic Search** - Your PRIMARY search tool. Takes a text query, returns memories ranked by relevance with similarity scores. Use this for almost every question.\n\n3. **Get Recent Memories** - Returns the most recent memories. Good for \"what have I been working on?\" or to supplement semantic search.\n\n4. **Get Reflections** - Personal reflections on topics, with emotional tone. Great for values, growth, and self-understanding questions.\n\n5. **Get Decisions** - Past decisions with reasoning and category. Essential for \"why did I decide...\" or \"what was the thinking behind...\"\n\n6. **Get Tasks** - Open or completed tasks with urgency. Good for \"what do I need to do\" or \"what's outstanding\"\n\n7. **Get Entity Details** - Information about people, companies, tools, projects. ALWAYS use when a name is mentioned.\n\n8. **Memory Deep Dive** - Gets FULL context for a specific memory including all related reflections, decisions, tasks, and entities. Use when you need complete information.\n\n9. **Get Strategic Insights** - Business/life strategy insights by category (business_model, positioning, market_fit, personal_growth).\n\n10. **Search by Theme** - Keyword-based search for broader topics. Good when semantic search is too narrow.\n\n11. **Get Customer Insights** - Customer/client feedback and insights.\n\n## EXAMPLE WORKFLOWS\n\n**Question: \"What did I decide about the pricing model?\"**\n1. Semantic Search: \"pricing model decision\"\n2. Get Decisions: topic=\"pricing\"\n3. If empty → Discover Database to check what decision categories exist\n4. If found categories like \"rates\" or \"billing\" → search those\n5. Memory Deep Dive on most relevant memory\n6. Synthesize findings\n\n**Question: \"Tell me about Justin\"**\n1. Get Entity Details: \"Justin\"\n2. If empty → Discover Database to check exact spelling\n3. Get Customer Insights: \"Justin\"\n4. Semantic Search: \"Justin\"\n5. Memory Deep Dive on most relevant memories\n6. Synthesize: who he is, pain points, discussions, decisions made\n\n**Question: \"What's my current thinking on real estate?\"**\n1. Semantic Search: \"real estate\"\n2. Get Reflections: topic=\"real estate\"\n3. Get Decisions: topic=\"real estate\"\n4. Get Strategic Insights: category=\"business_model\"\n5. If results are thin → Discover Database to find related themes\n\n**Question: \"What data do you have about me?\"**\n1. Discover Database → Get full overview\n2. Report on entities, decisions, reflections, themes, statistics\n\n## RESPONSE GUIDELINES\n\n- **Be conversational** - This is Telegram chat, keep it readable\n- **Cite your sources** - \"In your conversation about X, you mentioned...\" or \"Back in [date], you decided...\"\n- **Show your work briefly** - \"I checked your decisions, reflections, and did a semantic search...\"\n- **Admit gaps honestly** - \"I searched thoroughly but couldn't find any records about X\"\n- **Be substantive** - Zane values depth over brevity\n- **Keep responses under 500 words** unless the question requires more\n\n## CRITICAL RULES\n\n1. **NEVER answer without searching first** (except for \"hi\" or \"thanks\")\n2. **ALWAYS use at least 2 tools** for any real question\n3. **If you find a relevant memory ID, ALWAYS do a Memory Deep Dive**\n4. **When asked about a person, ALWAYS use Get Entity Details**\n5. **If semantic search returns nothing, try Discover Database + Search by Theme**\n6. **When unsure what exists, use Discover Database first**\n7. **NEVER say \"no data found\" after just one failed search - try alternatives first**\n\n## YOUR PERSISTENT CONTEXT (Living Document)\n{{ $('Fetch Living Context').item.json.formatted_context }}\n\n## RECENT CONVERSATION\n{{ $('Build Agent Context').item.json.conversation_history }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        13008,
+        8736
+      ],
+      "id": "6c1aed62-ec37-4df0-930b-6713c5007fe3",
+      "name": "Memory Agent1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n-service-8act.onrender.com/webhook/tool-get-living-context",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        12352,
+        9584
+      ],
+      "id": "17e2e06f-9631-49ca-9809-c49f5a165540",
+      "name": "Get Living Context Info"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the transcript from the earlier node\nconst prepareNode = $('Prepare for Extraction').first().json;\n\n// 2. Get the context from the node directly before this one\n// Changed from 'Get Current Living Context' to 'Get Living Context Info'\nconst contextNode = $('Get Living Context Info').first().json;\n\n// Extract values safely\nconst transcript = prepareNode.transcript || \"\";\nconst currentContext = contextNode.raw || {};\n\n// If transcript is missing, stop to prevent prompt errors\nif (!transcript) {\n  return [{ json: { error: \"No transcript found\", skip: true } }];\n}\n\nreturn [{\n  json: {\n    prompt: `You are updating a \"Living Context Document\" that captures evolving beliefs, patterns, and direction.\n\n## Current Living Context:\n${JSON.stringify(currentContext, null, 2)}\n\n## New Conversation Just Ended:\n${transcript.substring(0, 8000)}\n\n## Your Task:\nAnalyze this conversation and determine what (if anything) should be updated in the Living Context.\n\nRules:\n1. Only update fields where the conversation provides NEW or CHANGED information\n2. For arrays (patterns, skills, threads), ADD new items don't replace unless something is explicitly contradicted\n3. Be concise - each field should be 1-2 sentences max\n4. If nothing relevant was discussed, return {\"no_update\": true}\n\nReturn a JSON object with ONLY the fields that need updating. Example:\n{\n  \"business_hypotheses\": {\n    \"whats_unclear\": \"Whether to focus on B2B or B2C first\"\n  },\n  \"active_threads\": [\"Evaluating pricing models\", \"Building living context system\"],\n  \"patterns\": {\n    \"repeated_energizers\": [\"Deep technical implementation\", \"System architecture\"]\n  }\n}\n\nReturn ONLY valid JSON, no explanation.`,\n    current_context: currentContext\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12592,
+        9584
+      ],
+      "id": "ce9555bc-f7bc-4baa-bcd4-8d982e2dd2c5",
+      "name": "Prepare Update Prompt"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-5-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "={{ $json.prompt }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        12800,
+        9584
+      ],
+      "id": "22f04031-2308-4f20-b0ad-64cd87e9ae77",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Navigate the deep nesting of the LLM output\n// It looks like: output[0].content[0].text\nconst rawData = $json.output?.[0]?.content?.[0]?.text || $json.text || $json.output;\n\nconst currentContextNode = $('Prepare Update Prompt').first().json;\nconst currentContext = currentContextNode.current_context;\n\ntry {\n  let update;\n\n  // 2. Logic to handle if data is ALREADY an object or still a string\n  if (typeof rawData === 'string') {\n    const cleanJson = rawData.replace(/```json|```/g, \"\").trim();\n    update = JSON.parse(cleanJson);\n  } else {\n    update = rawData; // It's already an object, no parsing needed\n  }\n  \n  // If no update needed, skip\n  if (!update || update.no_update === true) {\n    return [{ json: { skip_update: true, message: \"No relevant updates found by AI.\" } }];\n  }\n  \n  // Merge arrays intelligently\n  const mergeArrays = (current, update) => {\n    const base = Array.isArray(current) ? current : [];\n    const adds = Array.isArray(update) ? update : [];\n    if (adds.length === 0) return base;\n    return [...new Set([...base, ...adds])];\n  };\n  \n  // Build the update payload\n  const payload = {};\n  \n  if (update.business_hypotheses) {\n    payload.p_business_hypotheses = {\n      ...(currentContext.business_hypotheses || {}),\n      ...update.business_hypotheses\n    };\n  }\n  \n  if (update.directional_summary) {\n    payload.p_directional_summary = {\n      ...(currentContext.directional_summary || {}),\n      ...update.directional_summary\n    };\n  }\n  \n  if (update.patterns) {\n    payload.p_patterns = {\n      repeated_failures: mergeArrays(\n        currentContext.patterns?.repeated_failures,\n        update.patterns?.repeated_failures\n      ),\n      repeated_energizers: mergeArrays(\n        currentContext.patterns?.repeated_energizers,\n        update.patterns?.repeated_energizers\n      ),\n      repeated_blockers: mergeArrays(\n        currentContext.patterns?.repeated_blockers,\n        update.patterns?.repeated_blockers\n      )\n    };\n  }\n  \n  if (update.identity_notes) {\n    payload.p_identity_notes = {\n      skills_compounding: mergeArrays(\n        currentContext.identity_notes?.skills_compounding,\n        update.identity_notes?.skills_compounding\n      ),\n      values_emerging: mergeArrays(\n        currentContext.identity_notes?.values_emerging,\n        update.identity_notes?.values_emerging\n      )\n    };\n  }\n  \n  if (update.active_threads) {\n    payload.p_active_threads = update.active_threads;\n  }\n  \n  payload.p_user_id = 'zane';\n  \n  return [{ json: { skip_update: false, payload } }];\n  \n} catch (e) {\n  return [{ \n    json: { \n      skip_update: true, \n      error: \"Processing Failed\", \n      message: e.message,\n      data_type: typeof rawData\n    } \n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13152,
+        9584
+      ],
+      "id": "14f34f69-b28f-4ccc-8647-22499e29207a",
+      "name": "Parse and Validate Update"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e97214b9-d220-4240-b769-f7c6576b2411",
+              "leftValue": "={{ $json.skip_update }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        13360,
+        9584
+      ],
+      "id": "72c48f4c-92d0-4749-8d0c-90ef183a1cee",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wwqdkiphfpdczgmnxxrt.supabase.co/rest/v1/rpc/update_living_context",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        13568,
+        9680
+      ],
+      "id": "cdbea705-cb4a-471e-b863-d988dd4dc304",
+      "name": "Update Living Context",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n-service-8act.onrender.com/webhook/tool-get-living-context",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        12736,
+        8736
+      ],
+      "id": "e026f9ea-2a31-4573-b7fe-357372008a52",
+      "name": "Fetch Living Context"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Build a complete profile of a person, company, project, or tool mentioned in the memory system. This specialist retrieves entity records, customer insights, and related conversation context to construct a comprehensive picture of who or what something is and its relationship to Zane. Use for: \"tell me about [person]\", \"what do I know about [company]\", \"who is [name]\", understanding relationships, or any question about a specific named entity. Returns a structured profile including identity, relationship context, key interactions, and customer insights if applicable.\n",
+        "method": "POST",
+        "url": "https://n8n-service-8act.onrender.com/webhook/specialist-entity",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "entity_name",
+              "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('parameters0_Value', `The exact name of the person, company, project, or tool to look up. Use the name as Zane would refer to them. Examples: \"William\", \"Justin\", \"Anthropic\", \"CAiS\", \"Shopify\"`, 'string') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        13616,
+        9040
+      ],
+      "id": "fc0e3d86-fe7b-449a-a616-140b7143a499",
+      "name": "Entity & People Specialist"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Synthesize past decisions, strategic thinking, and personal reflections on any topic. This specialist retrieves decisions with their reasoning, strategic insights by category, and personal reflections with emotional context, then weaves them into a coherent strategic picture. Use for: \"what did I decide about X\", \"what's my strategy for Y\", \"how do I feel about Z\", \"what's my thinking on [topic]\", understanding the evolution of ideas, or any question about decisions, strategy, direction, or personal reflection. Returns a synthesis including decisions made, strategic insights, reflections, patterns of thinking, and open questions.\n",
+        "method": "POST",
+        "url": "https://n8n-service-8act.onrender.com/webhook/specialist-strategy",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('parameters0_Value', `The question about decisions, strategy, or reflections. Be specific about the topic area. Examples: \"what did I decide about pricing\", \"what is my strategy for CAiS\", \"how do I feel about real estate\", \"what is my thinking on work-life balance\", \"what decisions have I made about the tech stack\"`, 'string') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        13440,
+        9040
+      ],
+      "id": "4a94d877-199f-4d0e-a87a-3cfaeccaa4bf",
+      "name": "Specialist Strategy & Decisions"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n-service-8act.onrender.com/webhook/specialist-memory",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('parameters0_Value', `The topic, question, or search terms to find in memories. Be specific - include names, keywords, or context. Examples: \"pricing strategy discussions\", \"conversations with William about business\", \"what I said about real estate investing\"`, 'string') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        13776,
+        9040
+      ],
+      "id": "a0d5c424-8349-4148-85d2-593c303a64a2",
+      "name": "Specialist Memory & Retrievel"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Retrieve, list, and filter tasks from Zane's personal task management system. Use this tool when the user asks about their to-do list, current actions, completed items, or needs a status update on specific commitments. You can filter by 'open' (default), 'completed', or 'all' to see everything. Returns a structured list including the task name, urgency level, due date, and the memory_id where the task originated. Use for questions like: 'what are my current tasks', 'what have I finished lately', 'do I have any urgent items', or 'list all tasks regardless of status'.",
+        "method": "POST",
+        "url": "https://n8n-service-8act.onrender.com/webhook/tool-get-tasks",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "task_status",
+              "value": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('parameters0_Value', `The status of tasks to retrieve. Must be one of: 'open', 'completed', or 'all'. Default is 'open'.`, 'string') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        13952,
+        9040
+      ],
+      "id": "5c77b112-e6b1-482c-b2b7-59e3c02c804b",
+      "name": "Tool Get Tasks"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-sonnet-4-5-20250929",
+          "mode": "list",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        12592,
+        8992
+      ],
+      "id": "49b19b0f-3cae-46b2-8aec-0668a46c6ba2",
+      "name": "Sonnet 4.5",
+      "credentials": {
+        "anthropicApi": {
+          "id": "6AhJQz2ZKkf4Ce3r",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $json.response;\nconst chatId = $json.chat_id;\nconst MAX_LENGTH = 4000;\n\nif (!text) return [];\n\n// Convert Markdown to Telegram HTML\nlet html = text\n  // Code blocks first (before other formatting)\n  .replace(/```[\\w]*\\n?([\\s\\S]*?)```/g, '<pre>$1</pre>')\n  // Inline code\n  .replace(/`([^`]+)`/g, '<code>$1</code>')\n  // Bold: **text** or __text__\n  .replace(/\\*\\*(.+?)\\*\\*/g, '<b>$1</b>')\n  .replace(/__(.+?)__/g, '<b>$1</b>')\n  // Italic: *text* or _text_ (but not inside words)\n  .replace(/(?<!\\w)\\*([^*]+)\\*(?!\\w)/g, '<i>$1</i>')\n  .replace(/(?<!\\w)_([^_]+)_(?!\\w)/g, '<i>$1</i>')\n  // Strikethrough\n  .replace(/~~(.+?)~~/g, '<s>$1</s>')\n  // Links\n  .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href=\"$2\">$1</a>')\n  // Headers become bold\n  .replace(/^#{1,6}\\s+(.+)$/gm, '<b>$1</b>');\n\n// Split into chunks\nconst chunks = [];\nlet currentPos = 0;\n\nwhile (currentPos < html.length) {\n  let endPos = currentPos + MAX_LENGTH;\n  \n  if (endPos < html.length) {\n    const lastNewline = html.lastIndexOf('\\n', endPos);\n    const lastSpace = html.lastIndexOf(' ', endPos);\n    endPos = (lastNewline > currentPos) ? lastNewline : (lastSpace > currentPos ? lastSpace : endPos);\n  }\n  \n  chunks.push({\n    json: {\n      chat_id: chatId,\n      response_chunk: html.substring(currentPos, endPos).trim()\n    }\n  });\n  \n  currentPos = endPos;\n}\n\nreturn chunks;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14256,
+        8736
+      ],
+      "id": "8cff4bf4-33c0-4038-9df9-c1f2c40a6b6f",
+      "name": "Chunk & Format Response"
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Route Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Input": {
+      "main": [
+        [
+          {
+            "node": "Get Voice Recording",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Parse Command",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Text Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Voice Recording": {
+      "main": [
+        [
+          {
+            "node": "Transcribe Voice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe Voice": {
+      "main": [
+        [
+          {
+            "node": "Prepare Voice Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Voice Message": {
+      "main": [
+        [
+          {
+            "node": "Get or Create Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Command": {
+      "main": [
+        [
+          {
+            "node": "Route Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Command": {
+      "main": [
+        [
+          {
+            "node": "Get Session for End",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Clear Session",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Abandon Old Session",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Recent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Help",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Help",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Help",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Text Message": {
+      "main": [
+        [
+          {
+            "node": "Get or Create Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get or Create Session": {
+      "main": [
+        [
+          {
+            "node": "Append User Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append User Message": {
+      "main": [
+        [
+          {
+            "node": "Build Agent Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Agent Context": {
+      "main": [
+        [
+          {
+            "node": "Send Thinking Indicator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Thinking Indicator": {
+      "main": [
+        [
+          {
+            "node": "Fetch Living Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Memory Agent1",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Agent Response": {
+      "main": [
+        [
+          {
+            "node": "Append Assistant Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Chunk & Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Assistant Message": {
+      "main": [
+        []
+      ]
+    },
+    "Get Tasks": {
+      "main": [
+        [
+          {
+            "node": "Format Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Session for End": {
+      "main": [
+        [
+          {
+            "node": "Compile Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Transcript": {
+      "main": [
+        [
+          {
+            "node": "Prepare for Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare for Extraction": {
+      "main": [
+        [
+          {
+            "node": "Check Skip Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Skip Extraction": {
+      "main": [
+        [
+          {
+            "node": "Send Skip Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Memory Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Memory Row": {
+      "main": [
+        [
+          {
+            "node": "Call Extraction Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Extraction Pipeline": {
+      "main": [
+        [
+          {
+            "node": "Mark Session Complete",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Living Context Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Session Complete": {
+      "main": [
+        [
+          {
+            "node": "Send End Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clear Session": {
+      "main": [
+        [
+          {
+            "node": "Send Clear Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Abandon Old Session": {
+      "main": [
+        [
+          {
+            "node": "Send New Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Tasks": {
+      "main": [
+        [
+          {
+            "node": "Send Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent": {
+      "main": [
+        [
+          {
+            "node": "Format Recent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Recent": {
+      "main": [
+        [
+          {
+            "node": "Send Recent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TOOL Discover Database": {
+      "ai_tool": [
+        [
+          {
+            "node": "Memory Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memory Agent1": {
+      "main": [
+        [
+          {
+            "node": "Extract Agent Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Living Context Info": {
+      "main": [
+        [
+          {
+            "node": "Prepare Update Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Update Prompt": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Parse and Validate Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse and Validate Update": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Update Living Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Living Context": {
+      "main": [
+        [
+          {
+            "node": "Memory Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entity & People Specialist": {
+      "ai_tool": [
+        [
+          {
+            "node": "Memory Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Specialist Strategy & Decisions": {
+      "ai_tool": [
+        [
+          {
+            "node": "Memory Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Specialist Memory & Retrievel": {
+      "ai_tool": [
+        [
+          {
+            "node": "Memory Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tool Get Tasks": {
+      "ai_tool": [
+        [
+          {
+            "node": "Memory Agent1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sonnet 4.5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Memory Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk & Format Response": {
+      "main": [
+        [
+          {
+            "node": "Send Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Telegram Trigger": [
+      {
+        "update_id": 180783759,
+        "message": {
+          "message_id": 240,
+          "from": {
+            "id": 8037039289,
+            "is_bot": false,
+            "first_name": "Zane",
+            "last_name": "Moore",
+            "language_code": "en"
+          },
+          "chat": {
+            "id": 8037039289,
+            "first_name": "Zane",
+            "last_name": "Moore",
+            "type": "private"
+          },
+          "date": 1768900447,
+          "text": "What was the script?"
+        }
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cc5c207f30420397d72654602d23c6e46b37dbe3ec8fdea2f1f84f2b3c8281fa"
+  }
+}

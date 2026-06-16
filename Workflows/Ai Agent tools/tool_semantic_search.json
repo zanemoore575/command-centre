@@ -1,0 +1,187 @@
+{
+  "name": "Tool - Semantic Search Memories",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tool-semantic-search",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [340, 300],
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "webhookId": "tool-semantic-search"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'text-embedding-3-small', input: $json.body?.query || '' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 300],
+      "id": "embed-query",
+      "name": "Embed Query",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst statusCode = response.statusCode || 200;\nconst body = response.body;\nconst webhookData = $('Webhook Trigger').first().json.body || {};\n\nif (statusCode >= 400) {\n  return [{\n    json: {\n      error: true,\n      message: `OpenAI embedding failed: ${statusCode}`,\n      details: body\n    }\n  }];\n}\n\nlet embedding = null;\ntry {\n  if (body && body.data && body.data[0] && body.data[0].embedding) {\n    embedding = body.data[0].embedding;\n  }\n} catch (e) {\n  return [{\n    json: {\n      error: true,\n      message: 'Failed to extract embedding'\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    embedding: embedding,\n    match_threshold: webhookData.match_threshold || 0.35,\n    match_count: webhookData.match_count || 8,\n    original_query: webhookData.query || ''\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 300],
+      "id": "extract-embedding",
+      "name": "Extract Embedding"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wwqdkiphfpdczgmnxxrt.supabase.co/rest/v1/rpc/agent_search_memories_by_embedding",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "params=single-object"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query_embedding: $json.embedding, match_threshold: $json.match_threshold, match_count: $json.match_count }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 300],
+      "id": "search-memories",
+      "name": "Search Memories",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst statusCode = response.statusCode || 200;\nconst body = response.body;\nconst originalQuery = $('Extract Embedding').first().json.original_query;\n\nif (statusCode >= 400) {\n  return [{\n    json: {\n      success: false,\n      error: `Supabase search failed: ${statusCode}`,\n      details: body,\n      tool: 'semantic_search',\n      query: originalQuery\n    }\n  }];\n}\n\nlet memories = [];\ntry {\n  if (typeof body === 'string') {\n    memories = JSON.parse(body);\n  } else if (Array.isArray(body)) {\n    memories = body;\n  } else if (body && typeof body === 'object') {\n    memories = body.data || body.memories || [body];\n  }\n} catch (e) {\n  memories = [];\n}\n\nconst formatted = memories.map(m => ({\n  id: m.id,\n  title: m.title,\n  summary: m.summary,\n  transcript_excerpt: m.transcript ? m.transcript.substring(0, 500) + '...' : null,\n  source: m.source,\n  created_at: m.created_at,\n  similarity: m.similarity ? (m.similarity * 100).toFixed(1) + '%' : null\n}));\n\nreturn [{\n  json: {\n    success: true,\n    count: formatted.length,\n    query: originalQuery,\n    memories: formatted,\n    tool: 'semantic_search',\n    message: formatted.length > 0 \n      ? `Found ${formatted.length} memories matching \"${originalQuery}\"` \n      : `No memories found matching \"${originalQuery}\". Try different search terms or use Search by Theme for broader results.`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1220, 300],
+      "id": "format-response",
+      "name": "Format Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1440, 300],
+      "id": "respond-webhook",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Embed Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embed Query": {
+      "main": [
+        [
+          {
+            "node": "Extract Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Embedding": {
+      "main": [
+        [
+          {
+            "node": "Search Memories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Memories": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

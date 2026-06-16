@@ -1,0 +1,125 @@
+{
+  "name": "Tool - Get Strategic Insights",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tool-get-strategic-insights",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [340, 300],
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "webhookId": "tool-get-strategic-insights"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wwqdkiphfpdczgmnxxrt.supabase.co/rest/v1/rpc/agent_get_strategic_insights",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "params=single-object"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ search_category: $json.body?.search_category || null, recent_days: $json.body?.recent_days || 365 }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 300],
+      "id": "call-supabase",
+      "name": "Call Supabase RPC",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst statusCode = response.statusCode || 200;\nconst body = response.body;\n\nif (statusCode >= 400) {\n  return [{\n    json: {\n      success: false,\n      error: `Supabase returned ${statusCode}`,\n      details: body,\n      tool: 'get_strategic_insights'\n    }\n  }];\n}\n\nlet insights = [];\ntry {\n  if (typeof body === 'string') {\n    insights = JSON.parse(body);\n  } else if (Array.isArray(body)) {\n    insights = body;\n  } else if (body && typeof body === 'object') {\n    insights = body.data || body.insights || [body];\n  }\n} catch (e) {\n  insights = [];\n}\n\nconst formatted = insights.map(i => ({\n  insight: i.insight,\n  category: i.category,\n  importance: i.importance,\n  actionable: i.actionable,\n  created_at: i.created_at,\n  memory_id: i.memory_id\n}));\n\nreturn [{\n  json: {\n    success: true,\n    count: formatted.length,\n    insights: formatted,\n    tool: 'get_strategic_insights',\n    message: formatted.length > 0 \n      ? `Found ${formatted.length} strategic insights` \n      : 'No strategic insights found matching your criteria'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 300],
+      "id": "format-response",
+      "name": "Format Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1000, 300],
+      "id": "respond-webhook",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Call Supabase RPC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Supabase RPC": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

@@ -1,0 +1,607 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "voice-ingest",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -160,
+        -416
+      ],
+      "id": "e0f50933-21ff-45c7-bea2-ae33da20b29c",
+      "name": "Webhook",
+      "webhookId": "2d87ce69-59eb-4c4d-9fd0-a9f0d56bd9cd"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Workflow Complete!",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2848,
+        -64
+      ],
+      "id": "6b7cfbf3-056c-46e3-bc73-7e1c3f79fb32",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "audio",
+        "name": "=voicenote {{ $now.format('FF') }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1dl7W72UQXTUu8Ev27r0wTVRsnaJGG8Sh",
+          "mode": "list",
+          "cachedResultName": "Voice Recordings ",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/1dl7W72UQXTUu8Ev27r0wTVRsnaJGG8Sh"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        496,
+        -48
+      ],
+      "id": "4c6f845e-fdaf-4947-91f9-fa68ac6670d6",
+      "name": "Upload file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "5aIfTNbZpgQEjFdj",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "memories",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "source",
+              "fieldValue": "shortcut_voice"
+            },
+            {
+              "fieldId": "content_type",
+              "fieldValue": "audio"
+            },
+            {
+              "fieldId": "raw_file_url",
+              "fieldValue": "={{ $json.webViewLink }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "raw"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ $now }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        688,
+        -48
+      ],
+      "id": "1edeccd2-7de9-4382-8193-fca8011ae6cc",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "operation": "transcribe",
+        "binaryPropertyName": "audio",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        1264,
+        -64
+      ],
+      "id": "6289e9fc-e2f6-40c1-998e-f307a47c0a45",
+      "name": "Transcribe a recording",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1056,
+        -64
+      ],
+      "id": "92b98df2-d8c8-43b4-a236-7c1fd162c453",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "memories",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Create a row').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "transcript",
+              "fieldValue": "={{ $json.text }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "transcribed"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        -64
+      ],
+      "id": "4d568dea-a0d1-48b7-abd2-2aba5f28dc43",
+      "name": "Update a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "= {{ $json.transcript }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=Summarise the following voice note in 2\u20133 sentences. Do not add interpretation.\nDo not add \"The voice note contains...\"\nJust write the summary"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        1680,
+        -64
+      ],
+      "id": "ad3fa2eb-080a-4a21-adcf-1cc92f7af35e",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1616,
+        144
+      ],
+      "id": "763368be-fde3-4ac5-b4af-59e8528f32de",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "memories",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Create a row').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "summary",
+              "fieldValue": "={{ $json.text }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "indexed"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        -64
+      ],
+      "id": "e0e24941-4864-47c4-854a-649dd6d78ff6",
+      "name": "Update a row1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "memories",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Create a row').item.json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "embeddings",
+              "fieldValue": "={{$json.data[0].embedding}}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2416,
+        -64
+      ],
+      "id": "f35eb744-bccf-4c00-9a63-ab111b091f33",
+      "name": "Update a row2",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.source }}",
+                    "rightValue": "shortcut_voice",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "a81f9baf-5136-417c-a818-90f0c230a4f6"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        160,
+        -416
+      ],
+      "id": "18fbd90f-3d23-4079-a1e7-499a17b9d220",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n-service-8act.onrender.com/webhook/ingest-conversation",
+        "sendHeaders": false,
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"title\": \"Voice note {{ $('Webhook').item.json.body.timestamp }}\",\n  \"transcript\": \"{{ $('Transcribe a recording').item.json.text }}\",\n  \"created_at\": \"{{ $now.toISO() }}\",\n  \"source\": \"shortcut_voice\"\n}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2608,
+        -64
+      ],
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Trigger Deep Extraction"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"{{$json.transcript}}\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2208,
+        -64
+      ],
+      "id": "b9fdfa73-c674-4452-bb06-a07d507a195b",
+      "name": "Generate Embeddings",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SqxuFZrwnFdiogDH",
+          "name": "OpenAi"
+        },
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording": {
+      "main": [
+        [
+          {
+            "node": "Update a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a row": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Update a row1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a row1": {
+      "main": [
+        [
+          {
+            "node": "Generate Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a row2": {
+      "main": [
+        [
+          {
+            "node": "Trigger Deep Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Deep Extraction": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Upload file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Update a row2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Webhook": [
+      {
+        "headers": {
+          "host": "n8n-service-8act.onrender.com",
+          "user-agent": "BackgroundShortcutRunner/4042.0.4 CFNetwork/3860.200.71 Darwin/25.1.0",
+          "content-length": "141615",
+          "accept": "*/*",
+          "accept-encoding": "gzip, br",
+          "accept-language": "en-NZ,en-AU;q=0.9,en;q=0.8",
+          "cdn-loop": "cloudflare; loops=1",
+          "cf-connecting-ip": "118.149.96.149",
+          "cf-ipcountry": "NZ",
+          "cf-ray": "9bf0809b8c45d9b0-AKL",
+          "cf-visitor": "{\"scheme\":\"https\"}",
+          "content-type": "multipart/form-data; boundary=3F95C93F-5CF2-4429-8752-A4C056FD39DF-14095-00000431171F4501",
+          "priority": "u=3",
+          "render-proxy-ttl": "4",
+          "rndr-id": "62ce1ab9-c9ac-4280",
+          "true-client-ip": "118.149.96.149",
+          "x-forwarded-for": "118.149.96.149, 104.23.198.39",
+          "x-forwarded-proto": "https",
+          "x-request-start": "1768596807107739"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "timestamp": "17 Jan 2026 at 9:53\u202fAM",
+          "source": "shortcut_voice"
+        },
+        "webhookUrl": "https://n8n-service-8act.onrender.com/webhook/voice-ingest",
+        "executionMode": "production"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cc5c207f30420397d72654602d23c6e46b37dbe3ec8fdea2f1f84f2b3c8281fa"
+  }
+}

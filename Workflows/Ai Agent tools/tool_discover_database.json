@@ -1,0 +1,117 @@
+{
+  "name": "Tool - Discover Database",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tool-discover-database",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        460,
+        340
+      ],
+      "id": "webhook-discover",
+      "name": "Webhook",
+      "webhookId": "tool-discover-database"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wwqdkiphfpdczgmnxxrt.supabase.co/rest/v1/rpc/agent_discover_database",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        340
+      ],
+      "id": "call-rpc",
+      "name": "Call Discovery RPC",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\n\n// Group by category for easier reading\nconst grouped = {};\nfor (const row of results) {\n  const cat = row.category || 'other';\n  if (!grouped[cat]) grouped[cat] = {};\n  grouped[cat][row.data_type] = {\n    values: row.available_values || [],\n    count: row.total_count || 0\n  };\n}\n\n// Build a human-readable summary\nlet summary = '## DATABASE DISCOVERY RESULTS\\n\\n';\n\nfor (const [category, types] of Object.entries(grouped)) {\n  summary += `### ${category.toUpperCase().replace('_', ' ')}\\n`;\n  for (const [dataType, data] of Object.entries(types)) {\n    if (data.values && data.values.length > 0) {\n      const displayValues = data.values.slice(0, 20);\n      const hasMore = data.values.length > 20;\n      summary += `- **${dataType}** (${data.count} total): ${displayValues.join(', ')}${hasMore ? '...' : ''}\\n`;\n    } else if (data.count > 0) {\n      summary += `- **${dataType}**: ${data.count}\\n`;\n    }\n  }\n  summary += '\\n';\n}\n\nreturn [{\n  json: {\n    success: true,\n    tool: 'discover_database',\n    message: 'Database discovery complete. Use these values to inform your searches.',\n    summary: summary,\n    raw_data: grouped\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        340
+      ],
+      "id": "format-results",
+      "name": "Format Results"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        340
+      ],
+      "id": "respond",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Call Discovery RPC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Discovery RPC": {
+      "main": [
+        [
+          {
+            "node": "Format Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Results": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

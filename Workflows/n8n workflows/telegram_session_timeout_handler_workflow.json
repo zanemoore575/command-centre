@@ -1,0 +1,455 @@
+
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1408,
+        1504
+      ],
+      "id": "811e3fc7-762f-4ae0-b4e1-f4f1f54803d8",
+      "name": "Every 5 Minutes"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "tableId": "telegram_sessions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "active"
+            }
+          ]
+        },
+        "options": {
+          "filterType": "manual"
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1616,
+        1504
+      ],
+      "id": "c0e68fc4-79a8-488a-9598-fd94b9b714f4",
+      "name": "Find Active Sessions",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter for sessions that have been inactive for 30+ minutes\nconst sessions = $input.all();\nconst thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);\n\nconst timedOutSessions = sessions.filter(item => {\n  const lastActivity = new Date(item.json.last_activity);\n  return lastActivity < thirtyMinutesAgo;\n});\n\nreturn timedOutSessions;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        1504
+      ],
+      "id": "filter-timeout-sessions",
+      "name": "Filter Timed Out Sessions"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.id }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notEmpty"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Has Sessions"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2064,
+        1504
+      ],
+      "id": "cc97e6a1-d9a2-4d8d-aeba-1795e4287a2d",
+      "name": "Check Has Sessions"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if messages array has enough content to save\nconst messages = $json.messages || [];\nconst messageCount = messages.length;\n\n// Only process if there's meaningful conversation (at least 2 messages)\nif (messageCount < 2) {\n  return [{\n    json: {\n      session_id: $json.id,\n      chat_id: $json.chat_id,\n      skip: true,\n      reason: 'Not enough messages'\n    }\n  }];\n}\n\n// Compile transcript\nconst transcript = messages.map(m => \n  `${m.role.toUpperCase()}: ${m.content}`\n).join('\\n\\n');\n\nconst title = `Telegram Chat (auto-saved) - ${new Date($json.started_at).toLocaleDateString('en-NZ', { \n  day: 'numeric', \n  month: 'short', \n  year: 'numeric',\n  hour: '2-digit',\n  minute: '2-digit'\n})}`;\n\nreturn [{\n  json: {\n    session_id: $json.id,\n    chat_id: $json.chat_id,\n    transcript: transcript,\n    title: title,\n    message_count: messageCount,\n    skip: false\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2288,
+        1408
+      ],
+      "id": "dd86cddf-2d90-4360-8d1c-92f4f43451b8",
+      "name": "Prepare Session Data"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.skip }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Skip"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2512,
+        1408
+      ],
+      "id": "77688145-944c-442f-9c47-e5bc7ebf90db",
+      "name": "Check Skip"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "telegram_sessions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.session_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "timed_out"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2720,
+        1296
+      ],
+      "id": "7d616cac-7c71-44a8-8e7e-ee9e6a6bbbee",
+      "name": "Mark Empty Timed Out",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "memories",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "source",
+              "fieldValue": "telegram_conversation_auto"
+            },
+            {
+              "fieldId": "transcript",
+              "fieldValue": "={{ $json.transcript }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.title }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "pending"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ $now.toISO() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2720,
+        1504
+      ],
+      "id": "64da712a-ed0f-441f-8a1a-6b8cb77e7c93",
+      "name": "Create Memory",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://n8n-service-8act.onrender.com/webhook/extract-memory",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"memory_id\": {{ $json.id }},\n  \"transcript\": {{ JSON.stringify($('Prepare Session Data').item.json.transcript) }},\n  \"title\": {{ JSON.stringify($('Prepare Session Data').item.json.title) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2944,
+        1504
+      ],
+      "id": "b2299641-c20a-4259-bf48-b7ef1fe52b7c",
+      "name": "Call Extraction Pipeline"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "telegram_sessions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Prepare Session Data').item.json.session_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "timed_out"
+            },
+            {
+              "fieldId": "memory_id",
+              "fieldValue": "={{ $('Create Memory').item.json.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3168,
+        1504
+      ],
+      "id": "3f16b717-3f62-40f5-a496-fcbb779fb567",
+      "name": "Mark Session Timed Out",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Prepare Session Data').item.json.chat_id }}",
+        "text": "=💾 Your previous conversation was auto-saved after 30 minutes of inactivity.\n\n📊 {{ $('Prepare Session Data').item.json.message_count }} messages extracted to memory.\n\nSend a new message to start a fresh conversation.",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3392,
+        1504
+      ],
+      "id": "f36f5c51-5f04-4a82-a6d2-40bd4da11171",
+      "name": "Notify User",
+      "webhookId": "dfdd6116-779f-4aab-8b6c-43e595b31960",
+      "credentials": {
+        "telegramApi": {
+          "id": "2ziiRMC49o7x8dzx",
+          "name": "Command Centre Bot"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2288,
+        1600
+      ],
+      "id": "5d60a1a0-2ad1-4576-a57e-a172f2f27309",
+      "name": "No Sessions to Process"
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Find Active Sessions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Active Sessions": {
+      "main": [
+        [
+          {
+            "node": "Filter Timed Out Sessions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Timed Out Sessions": {
+      "main": [
+        [
+          {
+            "node": "Check Has Sessions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Has Sessions": {
+      "main": [
+        [
+          {
+            "node": "Prepare Session Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Sessions to Process",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Session Data": {
+      "main": [
+        [
+          {
+            "node": "Check Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Skip": {
+      "main": [
+        [
+          {
+            "node": "Mark Empty Timed Out",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Memory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Memory": {
+      "main": [
+        [
+          {
+            "node": "Call Extraction Pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Extraction Pipeline": {
+      "main": [
+        [
+          {
+            "node": "Mark Session Timed Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Session Timed Out": {
+      "main": [
+        [
+          {
+            "node": "Notify User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "cc5c207f30420397d72654602d23c6e46b37dbe3ec8fdea2f1f84f2b3c8281fa"
+  }
+}

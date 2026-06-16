@@ -1,0 +1,1751 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ingest-conversation",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        2016,
+        3600
+      ],
+      "id": "8b2e0612-ff03-46c2-befa-984ae8962971",
+      "name": "Webhook",
+      "webhookId": "2e7ea4b0-b0ad-463b-9401-61210b64265b"
+    },
+    {
+      "parameters": {
+        "tableId": "memories",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "source",
+              "fieldValue": "={{ $json.body.source || 'conversation_export' }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.body.title }}"
+            },
+            {
+              "fieldId": "transcript",
+              "fieldValue": "={{ $json.body.transcript }}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ $json.body.created_at }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "extracting"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        3600
+      ],
+      "id": "b08375b4-16f8-4f99-beb4-ef583c989cc2",
+      "name": "Store Base Memory",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Extract ONLY significant entities from this conversation.\n\nPEOPLE (proper nouns only):\n- Clients: Rachel Burnard, Aaron, William, etc.\n- Partners/Family: Tim, Nadia, Tate, Lake, Oakley\n- Industry contacts (named individuals)\n\nCOMPANIES (proper nouns only):\n- Client businesses with names: Greenmachine\n- NOT generic terms like 'scaffolding companies'\n\nPROJECTS (named projects only):\n- Rach-bot, Mandy, CAiS Command Centre\n- Specific named implementations\n\nTOOLS (actual software/platforms):\n- n8n, Supabase, OpenAI, Twilio, Whisper\n\nSIGNIFICANT CONCEPTS (major themes only - max 3-5):\n- Overarching business/personal concepts\n- Examples: 'integrity vs survival anxiety', 'depth vs speed tension'\n- NOT individual pain points or phrases\n\nRULES:\n- Do NOT extract 'Zane'\n- Do NOT extract generic terms (business model, ROI, UX)\n- Keep to 15-25 entities MAX\n- Include brief context for each\n\nReturn JSON:\n{\n  \"entities\": [\n    {\n      \"entity_type\": \"person|company|project|tool|concept\",\n      \"entity_name\": \"exact name\",\n      \"context\": \"one sentence: how mentioned and why it matters\"\n    }\n  ]\n}"
+            },
+            {
+              "content": "={{ $json.transcript }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2848,
+        3024
+      ],
+      "id": "c4bde249-509d-4626-a2b6-f4abcb378f91",
+      "name": "Extract Entities",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const memoryId = $('Merge All Extractions').item.json.memory_id;\nconst theme = $('Merge All Extractions').item.json.theme || {};\n\n// Skip if no theme data\nif (!theme.main_theme) {\n  return [{ json: { _skip: true, memory_id: memoryId } }];\n}\n\nreturn [{\n  json: {\n    memory_id: memoryId,\n    main_theme: theme.main_theme,\n    sub_themes: JSON.stringify(theme.sub_themes || []),\n    conversation_type: theme.conversation_type,\n    business_relevance: theme.business_relevance,\n    contains_decisions: theme.contains_decisions || false,\n    contains_customer_insights: theme.contains_customer_insights || false,\n    contains_personal_breakthrough: theme.contains_personal_breakthrough || false,\n    contains_action_items: theme.contains_action_items || false,\n    key_takeaways: JSON.stringify(theme.key_takeaways || [])\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4480,
+        4192
+      ],
+      "id": "b7ad44b1-f610-4a3e-9e3b-9a1ae8b339ed",
+      "name": "Prepare Theme Data"
+    },
+    {
+      "parameters": {
+        "numberInputs": 7
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3424,
+        3520
+      ],
+      "id": "c4904e04-5d6c-42fe-8d7a-8f049ff3ddfe",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are extracting ZANE'S ACTUAL BUSINESS DECISIONS from his ChatGPT conversation.\n\nA decision is something ZANE:\n- Decided to do: \"I'm going to focus on trades businesses in Whangarei\"\n- Decided NOT to do: \"I'm not going to build voice AI receptionists\"\n- Changed direction on: \"I'm pivoting away from real estate to trades\"\n- Set a specific strategy: \"I'll charge $500/month for Rach-bot\"\n- Chose an approach: \"I'll use human-in-the-loop instead of full automation\"\n\nDO NOT extract:\n- General observations about markets\n- Philosophical discussions about business\n- Abstract principles (unless Zane explicitly adopted them)\n- Things Zane is \"considering\" without commitment\n\nONLY extract decisions where Zane EXPLICITLY:\n- Said \"I'm going to...\"\n- Said \"I decided...\"\n- Said \"I won't do X\"\n- Made a concrete choice\n\nReturn JSON:\n{\n  \"decisions\": [\n    {\n      \"decision\": \"Exact statement of what Zane decided (use his words)\",\n      \"category\": \"pricing|market|product|strategy|pivot|values\",\n      \"reasoning\": \"Why Zane made this choice (from conversation)\",\n      \"alternatives_considered\": [\"what else he thought about\"],\n      \"confidence_level\": \"certain|tentative|exploring|struggling\",\n      \"emotional_context\": \"how he felt (from his words: excited, uncertain, frustrated, etc.)\"\n    }\n  ]\n}\n\nBE STRICT. If Zane didn't explicitly decide something, return empty array."
+            },
+            {
+              "content": "={{ $json.transcript }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          },
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2848,
+        3216
+      ],
+      "id": "c258f39b-8099-476c-b256-9c3db93ab8ab",
+      "name": "Extract Business Decisions",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Extract SPECIFIC CUSTOMER INSIGHTS from this conversation.\n\nONLY extract insights about NAMED PEOPLE or SPECIFIC INTERACTIONS.\n\nLook for:\n- Specific customers mentioned by name (Aaron, William, Rachel, Justin, Jay, etc.)\n- Actual pain points THEY described to Zane\n- Objections THEY raised\n- What THEY said they wanted\n- Quotes from discovery calls or client conversations\n\nDO NOT extract:\n- General market observations\n- Philosophical discussions about customer types\n- Zane's speculation about what customers might want\n- Abstract pain points not tied to real people\n\nReturn JSON:\n{\n  \"insights\": [\n    {\n      \"customer_name\": \"REQUIRED - actual name from conversation\",\n      \"customer_type\": \"real_estate|trades|nursery|general_smb\",\n      \"pain_point\": \"Specific problem THIS PERSON described\",\n      \"desire\": \"What THIS PERSON said they wanted\",\n      \"objection\": \"Concerns THIS PERSON raised\",\n      \"automation_opportunity\": \"Specific automation identified for THIS PERSON\",\n      \"quote\": \"Exact words from the customer if available\"\n    }\n  ]\n}\n\nIf no SPECIFIC, NAMED customers are discussed, return empty array."
+            },
+            {
+              "content": "={{ $json.transcript }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          },
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2848,
+        3408
+      ],
+      "id": "e37bd58a-9856-46d9-a6fa-477d836fd6ce",
+      "name": "Extract Customer Insights",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Extract ZANE'S PERSONAL REFLECTIONS about himself and his business journey.\n\nPersonal reflections are moments where Zane:\n- Realizes something about himself: \"I'm not shallow, and that changes the game\"\n- Identifies an internal tension: \"I'm caught between integrity and survival anxiety\"\n- Has self-doubt: \"Maybe wanting depth is my downfall\"\n- Reframes his thinking: \"My dislike of voice AI is discernment, not resistance\"\n- Questions his approach: \"Am I avoiding something out of fear or values?\"\n- Recognizes patterns: \"I light up when building Mandy but dread selling voice bots\"\n\nDO NOT extract:\n- Business facts\n- Market observations\n- Things about customers\n- Strategic insights (those go in strategic_insights)\n\nONLY extract moments of SELF-AWARENESS about Zane's:\n- Identity as a builder\n- Values and what matters to him\n- Internal struggles and tensions\n- Self-doubt or breakthroughs\n- Emotional patterns\n\nReturn JSON:\n{\n  \"reflections\": [\n    {\n      \"reflection_type\": \"self_doubt|insight|values_clarification|breakthrough|struggle\",\n      \"reflection\": \"Zane's actual realization (in his voice if possible)\",\n      \"topic\": \"depth_vs_speed|integrity|fear|motivation|identity|business_approach\",\n      \"emotional_tone\": \"uncertain|excited|frustrated|clear|relieved|struggling\"\n    }\n  ]\n}"
+            },
+            {
+              "content": "={{ $json.transcript }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          },
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2848,
+        3600
+      ],
+      "id": "644d0a45-1e55-4f66-ba97-6a65b072badf",
+      "name": "Extract Personal Reflections",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Extract STRATEGIC INSIGHTS that connect patterns across Zane's journey.\n\nStrategic insights are META-OBSERVATIONS that:\n- Identify Zane's unique strengths or positioning\n- Reveal patterns in how he works or decides\n- Connect multiple data points from the conversation\n- Suggest market positioning or competitive advantage\n- Highlight risks or opportunities specific to him\n\nDO NOT extract:\n- General business advice\n- Obvious observations\n- Things that apply to everyone\n- Zane's own reflections (those go in personal_reflections)\n\nONLY extract insights that are:\n- Specific to Zane's situation\n- Connect multiple elements\n- Provide strategic direction\n- Come from synthesizing the conversation\n\nThese should feel like insights from a BUSINESS ADVISOR who knows Zane well.\n\nReturn JSON:\n{\n  \"insights\": [\n    {\n      \"insight_category\": \"business_model|positioning|market_fit|personal_growth\",\n      \"insight\": \"One clear sentence observation\",\n      \"supporting_evidence\": [\"quote or fact from conversation that supports this\"],\n      \"confidence\": \"high|medium|speculative\",\n      \"actionable\": true,\n      \"suggested_action\": \"what Zane could do with this insight\"\n    }\n  ]\n}"
+            },
+            {
+              "content": "={{ $json.transcript }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          },
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2848,
+        3792
+      ],
+      "id": "56b74de8-4b3e-4b01-af41-be48e35a9498",
+      "name": "Extract Strategic Insights",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Extract ACTIONABLE TASKS from this conversation.\n\nTasks are specific things Zane:\n- Said he would do\n- Was suggested to do (by the AI) and acknowledged\n- Needs to follow up on\n- Should research or explore\n\nDO NOT extract:\n- Vague intentions\n- General principles\n- Things already completed in the conversation\n\nReturn JSON:\n{\n  \"tasks\": [\n    {\n      \"task\": \"Clear, actionable task description\",\n      \"context\": \"Why this task matters (from conversation)\",\n      \"urgency\": \"immediate|this_week|soon|someday\",\n      \"category\": \"build|outreach|research|content|personal|follow_up\"\n    }\n  ]\n}\n\nIf no clear tasks were identified, return empty array."
+            },
+            {
+              "content": "={{ $json.transcript }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          },
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2848,
+        3984
+      ],
+      "id": "25381994-19d7-4bf9-a0cf-9b331976f9fb",
+      "name": "Extract Action Items",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Summarize this conversation in a way that makes it FINDABLE and USEFUL later.\n\nReturn JSON:\n{\n  \"main_theme\": \"One clear sentence: what was THIS SPECIFIC conversation about?\",\n  \"sub_themes\": [\"specific topic 1\", \"specific topic 2\", \"specific topic 3\"],\n  \"conversation_type\": \"strategic|tactical|emotional_processing|brainstorm|problem_solving\",\n  \"business_relevance\": \"critical|high|medium|low|personal\",\n  \"contains_decisions\": true,\n  \"contains_customer_insights\": false,\n  \"contains_personal_breakthrough\": true,\n  \"contains_action_items\": true,\n  \"key_takeaways\": [\"specific insight 1\", \"specific insight 2\", \"specific insight 3\"]\n}"
+            },
+            {
+              "content": "={{ $json.transcript }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          },
+          "temperature": 0.3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2848,
+        4176
+      ],
+      "id": "904cdbc2-facd-4c72-8da4-3f1449c8b71e",
+      "name": "Conversation Theme Summary",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "memories",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Prepare Theme for Embedding').item.json.memory_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "embeddings",
+              "fieldValue": "={{ JSON.stringify($json.data[0].embedding) }}"
+            },
+            {
+              "fieldId": "summary",
+              "fieldValue": "={{ $('Prepare Theme for Embedding').item.json.text_for_embedding }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        4224,
+        3600
+      ],
+      "id": "f340f0e3-5d9a-415a-af62-006d96ac498f",
+      "name": "Insert Embeddings",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "model",
+              "value": "text-embedding-3-small"
+            },
+            {
+              "name": "input",
+              "value": "={{ $json.text_for_embedding }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        4000,
+        3600
+      ],
+      "id": "f57bafea-5130-4876-91b4-8be1af3db0b0",
+      "name": "Generate Embeddings",
+      "credentials": {
+        "openAiApi": {
+          "id": "pDJOyVluHP4GnR2q",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get memory_id - try both possible node names\nlet memoryId, title;\n\ntry {\n  memoryId = $('Create a row').first().json.id;\n} catch (e) {\n  try {\n    memoryId = $('Store Base Memory').first().json.id;\n  } catch (e2) {\n    throw new Error('Could not find memory ID node');\n  }\n}\n\ntry {\n  title = $('Webhook').first().json.body.title;\n} catch (e) {\n  title = 'Untitled';\n}\n\n// Process merged LLM outputs\nlet entities = [], decisions = [], insights = [], reflections = [];\nlet strategic = [], tasks = [], theme = {};\n\nfor (const item of $input.all()) {\n  try {\n    let textData = null;\n    \n    // Your structure: { output: [{ content: [{ text: {...} }] }] }\n    if (item.json.output?.[0]?.content?.[0]?.text) {\n      textData = item.json.output[0].content[0].text;\n    }\n    \n    if (!textData) continue;\n    \n    // Route based on what keys exist\n    if (textData.entities) entities = textData.entities;\n    if (textData.decisions) decisions = textData.decisions;\n    if (textData.reflections) reflections = textData.reflections;\n    if (textData.tasks) tasks = textData.tasks;\n    if (textData.main_theme) theme = textData;\n    if (textData.insights?.length > 0) {\n      // Distinguish customer insights from strategic insights\n      if (textData.insights[0].customer_name !== undefined) {\n        insights = textData.insights;\n      } else {\n        strategic = textData.insights;\n      }\n    }\n  } catch (e) {\n    console.log('Parse error:', e.message);\n  }\n}\n\nreturn [{\n  json: { memory_id: memoryId, title, entities, decisions, insights, reflections, strategic, tasks, theme }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3632,
+        3600
+      ],
+      "id": "4b81a64c-5ab2-42bf-ae6d-8138f321f2c3",
+      "name": "Merge All Extractions"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Look back specifically to the node that actually has the entities array\nconst extractionNode = $('Merge All Extractions').first().json;\nconst memoryId = extractionNode.memory_id;\nconst entities = extractionNode.entities || [];\n\nif (entities.length === 0) {\n  return [{ json: { _skip: true, memory_id: memoryId } }];\n}\n\nreturn entities.map(e => ({\n  json: {\n    memory_id: memoryId,\n    entity_type: e.entity_type,\n    entity_name: e.entity_name,\n    context: e.context\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4480,
+        3040
+      ],
+      "id": "7d366dde-17c4-409e-bbd7-59fe3430e538",
+      "name": "Split Entities"
+    },
+    {
+      "parameters": {
+        "jsCode": "const memoryId = $('Merge All Extractions').item.json.memory_id;\nconst decisions = $('Merge All Extractions').item.json.decisions || [];\n\nif (decisions.length === 0) {\n  return [{ json: { _skip: true, memory_id: memoryId } }];\n}\n\nreturn decisions.map(d => ({\n  json: {\n    memory_id: memoryId,\n    decision: d.decision,\n    category: d.category,\n    reasoning: d.reasoning,\n    alternatives_considered: JSON.stringify(d.alternatives_considered || []),\n    confidence_level: d.confidence_level,\n    emotional_context: d.emotional_context\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4480,
+        3232
+      ],
+      "id": "6a033e49-0e7f-4323-a7b8-e237ab8476b7",
+      "name": "Split Decisions"
+    },
+    {
+      "parameters": {
+        "tableId": "decisions",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "memory_id",
+              "fieldValue": "={{ $json.memory_id }}"
+            },
+            {
+              "fieldId": "decision",
+              "fieldValue": "={{ $json.decision }}"
+            },
+            {
+              "fieldId": "category",
+              "fieldValue": "={{ $json.category }}"
+            },
+            {
+              "fieldId": "reasoning",
+              "fieldValue": "={{ $json.reasoning }}"
+            },
+            {
+              "fieldId": "alternatives_considered",
+              "fieldValue": "={{ $json.\nalternatives_considered }}"
+            },
+            {
+              "fieldId": "confidence_level",
+              "fieldValue": "={{ $json.confidence_level }}"
+            },
+            {
+              "fieldId": "emotional_context",
+              "fieldValue": "={{ $json.emotional_context}}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5136,
+        3232
+      ],
+      "id": "ddf52476-9fc4-4fc7-bfbd-721c984ce497",
+      "name": "Insert Decisions",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const memoryId = $('Merge All Extractions').item.json.memory_id;\nconst insights = $('Merge All Extractions').item.json.insights || [];\n\nif (insights.length === 0) {\n  return [{ json: { _skip: true, memory_id: memoryId } }];\n}\n\nreturn insights.map(i => ({\n  json: {\n    memory_id: memoryId,\n    customer_name: i.customer_name,\n    customer_type: i.customer_type,\n    pain_point: i.pain_point,\n    desire: i.desire,\n    objection: i.objection,\n    automation_opportunity: i.automation_opportunity,\n    quote: i.quote\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4480,
+        3424
+      ],
+      "id": "3afd7d3a-a04d-48e6-b36d-d7d00d405227",
+      "name": "Split Customer Insights"
+    },
+    {
+      "parameters": {
+        "tableId": "customer_insights",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "memory_id",
+              "fieldValue": "={{ $json.memory_id }}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            },
+            {
+              "fieldId": "customer_name",
+              "fieldValue": "={{ $json.customer_name }}"
+            },
+            {
+              "fieldId": "customer_type",
+              "fieldValue": "={{ $json.customer_type }}"
+            },
+            {
+              "fieldId": "pain_point",
+              "fieldValue": "={{ $json.pain_point }}"
+            },
+            {
+              "fieldId": "desire",
+              "fieldValue": "={{ $json.desire }}"
+            },
+            {
+              "fieldId": "objection",
+              "fieldValue": "={{ $json.objection }}"
+            },
+            {
+              "fieldId": "automation_opportunity",
+              "fieldValue": "={{ $json.automation_opportunity }}"
+            },
+            {
+              "fieldId": "quote",
+              "fieldValue": "={{ $json.quote }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5136,
+        3424
+      ],
+      "id": "65c8e70e-4e48-4e4b-9ed1-b4ecfca3a10b",
+      "name": "Insert Customer Insights",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const memoryId = $('Merge All Extractions').item.json.memory_id;\nconst reflections = $('Merge All Extractions').item.json.reflections || [];\n\nif (reflections.length === 0) {\n  return [{ json: { _skip: true, memory_id: memoryId } }];\n}\n\nreturn reflections.map(r => ({\n  json: {\n    memory_id: memoryId,\n    reflection_type: r.reflection_type,\n    reflection: r.reflection,\n    topic: r.topic,\n    emotional_tone: r.emotional_tone\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4480,
+        3616
+      ],
+      "id": "81df33a7-ee71-4b76-b140-86f94fc7e387",
+      "name": "Split Reflections"
+    },
+    {
+      "parameters": {
+        "tableId": "reflections",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "memory_id",
+              "fieldValue": "={{ $json.memory_id }}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            },
+            {
+              "fieldId": "reflection_type",
+              "fieldValue": "={{ $json.reflection_type }}"
+            },
+            {
+              "fieldId": "reflection",
+              "fieldValue": "={{ $json.reflection }}"
+            },
+            {
+              "fieldId": "topic",
+              "fieldValue": "={{ $json.topic }}"
+            },
+            {
+              "fieldId": "emotional_tone",
+              "fieldValue": "={{ $json.emotional_tone }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5136,
+        3616
+      ],
+      "id": "b45a32c8-14d6-4d89-ade7-a99fce2db48b",
+      "name": "Insert Reflections",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "memories",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Merge All Extractions').item.json.memory_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "completed"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5568,
+        3616
+      ],
+      "id": "798217f8-41e9-469f-8774-0b64ed57c67e",
+      "name": "Update Memory Status",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const memoryId = $('Merge All Extractions').item.json.memory_id;\nconst strategic = $('Merge All Extractions').item.json.strategic || [];\n\nif (strategic.length === 0) {\n  return [{ json: { _skip: true, memory_id: memoryId } }];\n}\n\nreturn strategic.map(s => ({\n  json: {\n    memory_id: memoryId,\n    insight_category: s.insight_category,\n    insight: s.insight,\n    supporting_evidence: JSON.stringify(s.supporting_evidence || []),\n    confidence: s.confidence,\n    actionable: s.actionable,\n    suggested_action: s.suggested_action\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4480,
+        3808
+      ],
+      "id": "55166974-421b-45fb-81ce-f6cbe152642b",
+      "name": "Split Strategic"
+    },
+    {
+      "parameters": {
+        "tableId": "strategic_insights",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "memory_id",
+              "fieldValue": "={{ $json.memory_id }}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            },
+            {
+              "fieldId": "insight_category",
+              "fieldValue": "={{ $json.insight_category }}"
+            },
+            {
+              "fieldId": "insight",
+              "fieldValue": "={{ $json.insight }}"
+            },
+            {
+              "fieldId": "supporting_evidence",
+              "fieldValue": "={{ $json.supporting_evidence }}"
+            },
+            {
+              "fieldId": "confidence",
+              "fieldValue": "={{ $json.confidence }}"
+            },
+            {
+              "fieldId": "actionable",
+              "fieldValue": "={{ $json.actionable }}"
+            },
+            {
+              "fieldId": "suggested_action",
+              "fieldValue": "={{ $json.suggested_action }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5136,
+        3808
+      ],
+      "id": "baf60b5f-fce6-4388-b0e8-bb52b3eb03cc",
+      "name": "Insert Strategic",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const memoryId = $('Merge All Extractions').item.json.memory_id;\nconst tasks = $('Merge All Extractions').item.json.tasks || [];\n\nif (tasks.length === 0) {\n  return [{ json: { _skip: true, memory_id: memoryId } }];\n}\n\nreturn tasks.map(t => ({\n  json: {\n    memory_id: memoryId,\n    task: t.task,\n    context: t.context,\n    urgency: t.urgency,\n    category: t.category\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4480,
+        4000
+      ],
+      "id": "13f76308-286a-4916-a538-3a799cb184c4",
+      "name": "Split Tasks"
+    },
+    {
+      "parameters": {
+        "tableId": "tasks",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "memory_id",
+              "fieldValue": "={{ $json.memory_id }}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            },
+            {
+              "fieldId": "task",
+              "fieldValue": "={{ $json.task }}"
+            },
+            {
+              "fieldId": "context",
+              "fieldValue": "={{ $json.context }}"
+            },
+            {
+              "fieldId": "urgency",
+              "fieldValue": "={{ $json.urgency }}"
+            },
+            {
+              "fieldId": "category",
+              "fieldValue": "={{ $json.category }}"
+            },
+            {
+              "fieldId": "completed",
+              "fieldValue": "={{ $json.completed }}"
+            },
+            {
+              "fieldId": "completed_at",
+              "fieldValue": "={{ $json.completed_at }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5136,
+        4000
+      ],
+      "id": "ccc9fc78-b313-4ff0-904c-d246dd4c2308",
+      "name": "Insert Tasks",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "tableId": "themes",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "memory_id",
+              "fieldValue": "={{ $json.memory_id }}"
+            },
+            {
+              "fieldId": "main_theme",
+              "fieldValue": "={{ $json.main_theme }}"
+            },
+            {
+              "fieldId": "sub_themes",
+              "fieldValue": "={{ $json.sub_themes }}"
+            },
+            {
+              "fieldId": "conversation_type",
+              "fieldValue": "={{ $json.conversation_type }}"
+            },
+            {
+              "fieldId": "business_relevance",
+              "fieldValue": "={{ $json.business_relevance }}"
+            },
+            {
+              "fieldId": "contains_decisions",
+              "fieldValue": "={{ $json.contains_decisions }}"
+            },
+            {
+              "fieldId": "contains_personal_breakthrough",
+              "fieldValue": "={{ $json.contains_personal_breakthrough }}"
+            },
+            {
+              "fieldId": "contains_customer_insights",
+              "fieldValue": "={{ $json.contains_customer_insights }}"
+            },
+            {
+              "fieldId": "contains_action_items",
+              "fieldValue": "={{ $json.contains_action_items }}"
+            },
+            {
+              "fieldId": "key_takeaways",
+              "fieldValue": "={{ $json.key_takeaways }}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5136,
+        4192
+      ],
+      "id": "1ab3943c-8a4a-4947-bf41-d9d28f4a2875",
+      "name": "Insert Theme",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "tableId": "entities",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "memory_id",
+              "fieldValue": "={{ $json.memory_id }}"
+            },
+            {
+              "fieldId": "entity_type",
+              "fieldValue": "={{ $json.entity_type }}"
+            },
+            {
+              "fieldId": "entity_name",
+              "fieldValue": "={{ $json.entity_name }}"
+            },
+            {
+              "fieldId": "context",
+              "fieldValue": "={{ $json.context }}"
+            },
+            {
+              "fieldId": "created_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5136,
+        3040
+      ],
+      "id": "66a74d6b-5885-46bc-ac6e-3994974b5f2d",
+      "name": "Insert Entities",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "71a2c2b4-05f9-4b13-811d-dd79c5c75229",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4688,
+        3040
+      ],
+      "id": "7867a056-0b58-41a2-a066-0e825157e2ce",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e006cc49-d91a-4b0b-866f-2f188b5de3de",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4688,
+        3232
+      ],
+      "id": "00fe3a8d-2b90-4449-a72d-9286aa22b6f9",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e006cc49-d91a-4b0b-866f-2f188b5de3de",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4688,
+        3424
+      ],
+      "id": "dfb222e0-eb5c-4936-8ea9-a341c238fc18",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e006cc49-d91a-4b0b-866f-2f188b5de3de",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4688,
+        3616
+      ],
+      "id": "c38d4bac-69cf-4db5-b46f-c266d9a955ae",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e006cc49-d91a-4b0b-866f-2f188b5de3de",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4688,
+        3808
+      ],
+      "id": "424eed01-9d34-4345-ad93-cad848438e2a",
+      "name": "If4"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e006cc49-d91a-4b0b-866f-2f188b5de3de",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4688,
+        4000
+      ],
+      "id": "95819d74-ca60-4f65-8d47-6d0eccbf05ca",
+      "name": "If5"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e006cc49-d91a-4b0b-866f-2f188b5de3de",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4688,
+        4192
+      ],
+      "id": "817b3c3f-b0b0-4325-8f12-470ea26228b6",
+      "name": "If6"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build a rich, searchable summary from the theme extraction\nconst data = $json;\nconst theme = data.theme || {};\n\nconst searchableParts = [\n  // Main theme\n  theme.main_theme,\n  \n  // Sub themes as a sentence\n  theme.sub_themes?.length ? `Topics: ${theme.sub_themes.join(', ')}` : null,\n  \n  // Key takeaways\n  theme.key_takeaways?.length ? `Key takeaways: ${theme.key_takeaways.join('. ')}` : null,\n  \n  // Conversation metadata\n  theme.conversation_type ? `Type: ${theme.conversation_type}` : null,\n  theme.business_relevance ? `Relevance: ${theme.business_relevance}` : null\n];\n\nconst textToEmbed = searchableParts.filter(Boolean).join('\\n\\n');\n\nreturn [{\n  json: {\n    ...data,\n    text_for_embedding: textToEmbed\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3808,
+        3600
+      ],
+      "id": "fe6e6c47-01d8-4900-a023-c3aa20155c2a",
+      "name": "Prepare Theme for Embedding"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Store Base Memory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Base Memory": {
+      "main": [
+        [
+          {
+            "node": "Conversation Theme Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Action Items",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Strategic Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Personal Reflections",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Customer Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Business Decisions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Entities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Entities": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Theme Data": {
+      "main": [
+        [
+          {
+            "node": "If6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Merge All Extractions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Business Decisions": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Extract Customer Insights": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Extract Personal Reflections": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Extract Strategic Insights": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Extract Action Items": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "Conversation Theme Summary": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 6
+          }
+        ]
+      ]
+    },
+    "Insert Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Split Decisions",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Customer Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Reflections",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Strategic",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Tasks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Theme Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Entities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Embeddings": {
+      "main": [
+        [
+          {
+            "node": "Insert Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Extractions": {
+      "main": [
+        [
+          {
+            "node": "Prepare Theme for Embedding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Entities": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Decisions": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Decisions": {
+      "main": [
+        [
+          {
+            "node": "Update Memory Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Customer Insights": {
+      "main": [
+        [
+          {
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Customer Insights": {
+      "main": [
+        [
+          {
+            "node": "Update Memory Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Reflections": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Reflections": {
+      "main": [
+        [
+          {
+            "node": "Update Memory Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Memory Status": {
+      "main": [
+        []
+      ]
+    },
+    "Split Strategic": {
+      "main": [
+        [
+          {
+            "node": "If4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Strategic": {
+      "main": [
+        [
+          {
+            "node": "Update Memory Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Tasks": {
+      "main": [
+        [
+          {
+            "node": "If5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Tasks": {
+      "main": [
+        [
+          {
+            "node": "Update Memory Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Theme": {
+      "main": [
+        [
+          {
+            "node": "Update Memory Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Entities": {
+      "main": [
+        [
+          {
+            "node": "Update Memory Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Insert Entities",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Insert Decisions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Insert Customer Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Insert Reflections",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If4": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Insert Strategic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If5": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Insert Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If6": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Insert Theme",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Theme for Embedding": {
+      "main": [
+        [
+          {
+            "node": "Generate Embeddings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Webhook": [
+      {
+        "headers": {
+          "host": "n8n-service-8act.onrender.com",
+          "user-agent": "python-requests/2.32.5",
+          "content-length": "6442",
+          "accept": "*/*",
+          "accept-encoding": "gzip, br",
+          "cdn-loop": "cloudflare; loops=1",
+          "cf-connecting-ip": "118.149.96.202",
+          "cf-ipcountry": "NZ",
+          "cf-ray": "9c01c8a62d1650ae-AKL",
+          "cf-visitor": "{\"scheme\":\"https\"}",
+          "content-type": "application/json",
+          "render-proxy-ttl": "4",
+          "rndr-id": "adf25443-2bd8-41ca",
+          "true-client-ip": "118.149.96.202",
+          "x-forwarded-for": "118.149.96.202, 104.23.198.39",
+          "x-forwarded-proto": "https",
+          "x-request-start": "1768778016027131"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "title": "Exciting AI Chatbot Demo for Green Machine",
+          "created_at": "2025-05-08T01:24:10.648373Z",
+          "transcript": "USER: Hey can you tailor this email to be bit more exciting and brief?\n\nHey Green Machine team,\nHope you’re having a great week!\nJust wanted to follow up on my last email and share something exciting—we’ve got your custom AI chatbot up and running in demo form!\nYou can check it out here: https://customaisolutions.app.n8n.cloud/webhook/304b5379-24ca-44f8-9848-bf4313c7ebb4/chat\nIt’s designed to handle common customer questions, help users find the right plants, and free up your team’s time—while keeping that friendly, helpful Green Machine tone. The current version is using a basic knowledge base, so we’d love your input to fine-tune it and add anything you’d like it to know.\nThe AI chatbot can easily be embedded into your website with just a simple script. You’ll have full control over its appearance and functionality, so it can blend seamlessly with your site’s design. Whether it's tweaking colors, fonts, or the chat window’s position, you can make it look and feel exactly like the chatbot we have on our own website—tailored to match your brand and specific needs.\nHere are a few trickier questions you can try out to test it:\n* “What’s a good native plant for a windy coastal site?”\n* “Do you have any fast-growing groundcovers for shade?”\nLet me know what you think!\nCheers, Zane Custom AI Solutions customaisolutions.nz\n\nCLAUDE: I'd be happy to make this email more exciting and brief. Here's a revised version:\n\nSubject: Your Green Machine AI Chatbot is LIVE! 🌱\n\nHi Green Machine team!\n\nGreat news – your custom AI chatbot is ready for test drives!\n\n➡️ Try it now: https://customaisolutions.app.n8n.cloud/webhook/304b5379-24ca-44f8-9848-bf4313c7ebb4/chat\n\nThis smart assistant handles customer FAQs, helps match shoppers with perfect plants, and frees up your team—all while maintaining that signature Green Machine personality!\n\nThe bot integrates seamlessly into your website with one simple script. You'll have complete control over its look and feel to match your branding perfectly.\n\nChallenge it with questions like:\n• \"What's a good native plant for a windy coastal site?\"\n• \"Do you have fast-growing groundcovers for shade?\"\n\nWhat do you think? We'd love your feedback to make it even smarter!\n\nCheers,\nZane\nCustom AI Solutions\ncustomaisolutions.nz\n\nUSER: Could we add a piece where we express that we can give the AI agent behind the chat bot tools to increase functionality and customise it to work with their business and automate the boring stuff\n\nCLAUDE: Here's the updated email with the added information about AI tools and automation:\n\nSubject: Your Green Machine AI Chatbot is LIVE! 🌱\n\nHi Green Machine team!\n\nGreat news – your custom AI chatbot is ready for test drives!\n\n➡️ Try it now: https://customaisolutions.app.n8n.cloud/webhook/304b5379-24ca-44f8-9848-bf4313c7ebb4/chat\n\nThis smart assistant handles customer FAQs, helps match shoppers with perfect plants, and frees up your team—all while maintaining that signature Green Machine personality!\n\nThe real power? We can equip your AI with specialized tools to automate your business processes! From checking inventory and processing orders to scheduling deliveries and managing customer accounts—your chatbot can handle the tedious tasks so your team can focus on what they do best.\n\nThe bot integrates seamlessly into your website with one simple script. You'll have complete control over its look and feel to match your branding perfectly.\n\nChallenge it with questions like:\n• \"What's a good native plant for a windy coastal site?\"\n• \"Do you have fast-growing groundcovers for shade?\"\n\nWhat do you think? We'd love your feedback to make it even smarter!\n\nCheers,\nZane\nCustom AI Solutions\ncustomaisolutions.nz\n\nUSER: Can we just keep it really brief that in future we could look into adding these tools and functionality\n\nCLAUDE: Here's the updated email with a briefer mention of future tools and functionality:\n\nSubject: Your Green Machine AI Chatbot is LIVE! 🌱\n\nHi Green Machine team!\n\nGreat news – your custom AI chatbot is ready for test drives!\n\n➡️ Try it now: https://customaisolutions.app.n8n.cloud/webhook/304b5379-24ca-44f8-9848-bf4313c7ebb4/chat\n\nThis smart assistant handles customer FAQs, helps match shoppers with perfect plants, and frees up your team—all while maintaining that signature Green Machine personality!\n\nThe bot integrates seamlessly into your website with one simple script, with full control over its appearance to match your branding.\n\nPlus, we can explore adding tools later that let your AI automate inventory checks, orders, and other routine tasks!\n\nChallenge it with questions like:\n• \"What's a good native plant for a windy coastal site?\"\n• \"Do you have fast-growing groundcovers for shade?\"\n\nWhat do you think? We'd love your feedback!\n\nCheers,\nZane\nCustom AI Solutions\ncustomaisolutions.nz\n\nUSER: Can we make the link different text?\n\nCLAUDE: Here's the updated email with different text for the link:\n\nSubject: Your Green Machine AI Chatbot is LIVE! 🌱\n\nHi Green Machine team!\n\nGreat news – your custom AI chatbot is ready for test drives!\n\n➡️ [Take it for a spin here!](https://customaisolutions.app.n8n.cloud/webhook/304b5379-24ca-44f8-9848-bf4313c7ebb4/chat)\n\nThis smart assistant handles customer FAQs, helps match shoppers with perfect plants, and frees up your team—all while maintaining that signature Green Machine personality!\n\nThe bot integrates seamlessly into your website with one simple script, with full control over its appearance to match your branding.\n\nPlus, we can explore adding tools later that let your AI automate inventory checks, orders, and other routine tasks!\n\nChallenge it with questions like:\n• \"What's a good native plant for a windy coastal site?\"\n• \"Do you have fast-growing groundcovers for shade?\"\n\nWhat do you think? We'd love your feedback!\n\nCheers,\nZane\nCustom AI Solutions\ncustomaisolutions.nz",
+          "conversation_id": "34041eea-5d60-4144-98c3-8e425a99cf0e"
+        },
+        "webhookUrl": "https://n8n-service-8act.onrender.com/webhook/ingest-conversation",
+        "executionMode": "production"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cc5c207f30420397d72654602d23c6e46b37dbe3ec8fdea2f1f84f2b3c8281fa"
+  }
+}

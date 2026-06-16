@@ -1,0 +1,125 @@
+{
+  "name": "Tool - Memory Deep Dive",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tool-memory-deep-dive",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [340, 300],
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "webhookId": "tool-memory-deep-dive"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://wwqdkiphfpdczgmnxxrt.supabase.co/rest/v1/rpc/agent_get_memory_context",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "params=single-object"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ target_memory_id: $json.body?.target_memory_id || $json.body?.memory_id || null }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [560, 300],
+      "id": "call-supabase",
+      "name": "Call Supabase RPC",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst statusCode = response.statusCode || 200;\nconst body = response.body;\n\nif (statusCode >= 400) {\n  return [{\n    json: {\n      success: false,\n      error: `Supabase returned ${statusCode}`,\n      details: body,\n      tool: 'memory_deep_dive'\n    }\n  }];\n}\n\nlet memoryContext = null;\ntry {\n  if (typeof body === 'string') {\n    memoryContext = JSON.parse(body);\n  } else if (body && typeof body === 'object') {\n    memoryContext = body;\n  }\n} catch (e) {\n  memoryContext = null;\n}\n\nif (!memoryContext || !memoryContext.id) {\n  return [{\n    json: {\n      success: false,\n      error: 'Memory not found',\n      tool: 'memory_deep_dive'\n    }\n  }];\n}\n\nconst formatted = {\n  memory: {\n    id: memoryContext.id,\n    title: memoryContext.title,\n    summary: memoryContext.summary,\n    transcript: memoryContext.transcript,\n    source: memoryContext.source,\n    created_at: memoryContext.created_at\n  },\n  reflections: memoryContext.reflections || [],\n  decisions: memoryContext.decisions || [],\n  tasks: memoryContext.tasks || [],\n  entities: memoryContext.entities || [],\n  strategic_insights: memoryContext.strategic_insights || []\n};\n\nreturn [{\n  json: {\n    success: true,\n    memory_context: formatted,\n    tool: 'memory_deep_dive',\n    message: `Retrieved full context for memory: ${formatted.memory.title || 'Untitled'}`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 300],
+      "id": "format-response",
+      "name": "Format Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1000, 300],
+      "id": "respond-webhook",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Call Supabase RPC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Supabase RPC": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
