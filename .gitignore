@@ -40,3 +40,6 @@ conversations.json
 
 # Claude Code local state
 .claude/
+
+# Generated daily check-in pages (live business data, regenerated daily)
+daily-checkin/*.html

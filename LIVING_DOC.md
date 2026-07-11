@@ -1,113 +1,170 @@
 # Command Centre — Living Project Status
 
-Updated: 2026-06-17 (task write-back + artifact storage)
+Updated: 2026-07-11 (full refresh against live database — docs had been frozen at 2026-06-17)
 
-## Purpose
-- Capture business context in journal entries.
-- Extract people, commitments, pain points, and insights automatically.
-- Enable grounded question answering over the business history.
-- Provide Claude Code-style phase-separated AI UX for transparent reasoning.
+## What this system is now
 
-## Current status
-- Foundation (backend + frontend scaffold) — complete
-- Journal entry system — complete
-- AI entity extraction — complete
-- Phase-separated chat streaming UX — complete
-- People tracking / relationship timeline — planned
-- Dashboard / timeline visualization — planned
-- Claude Code / MCP integration / docs sync — active
-- MCP server hosting — migrated from local Mac + ngrok to Render (complete, 2026-06-17)
-- Task write-back (complete/update/create/merge tasks, dedup-on-ingest, real priority spread) — complete, 2026-06-17
-- Artifact storage (save/search/get documents Claude authors or Zane uploads) — complete, 2026-06-17
-- Daily brief (Telegram push + reply capture) — planned, not started (see `cais-build-brief-tasks-daily-brief.md`, Part B)
+A persistent business memory and task system for Zane, served to Claude everywhere via MCP.
 
-## What is complete
-- FastAPI backend with PostgreSQL / optional SQLite support.
-- Next.js frontend with journal CRUD and basic navigation.
-- Claude-powered entity extraction pipeline for entries.
-- Phase 1/2/3 streaming UI experience.
-- Top-level docs cleanup plan and living status workflow.
+The original vision (Telegram bot with a custom agentic n8n layer, plus a Next.js
+journal frontend) has been **deliberately retired**. Trying to remake Claude inside
+Telegram was the mistake — the claude.ai app already is that interface. The system
+that survived is better than what was envisioned:
+
+- **claude.ai app** (desktop + mobile) connects to the Command Centre through the
+  MCP connector — conversation capture, recall, task write-back, artifacts.
+- **Claude Code** connects to the *same* MCP server — so coding sessions log to and
+  read from the same memory.
+- **iOS Shortcut voice notes** still flow in through the n8n webhook path.
+- n8n survives only as the **ingest/extraction pipeline** (not as an agent).
+
+### Retired (kept in repo/git history for reference only)
+- Telegram bot + session handling (`Workflows/n8n workflows/telegram_*.json`)
+- Hierarchical specialist-agent system (Memory/Entity/Strategy specialists)
+- Next.js frontend + FastAPI journal app (`frontend/`, `backend/` app routes —
+  the backend folder still matters, but only for `backend/app/mcp/`, the MCP server)
+- `living_context` table (empty; was updated by the Telegram `/end` flow, which no longer runs)
+
+## Architecture (current)
+
+```
+CAPTURE                      PROCESS                     STORE                SERVE
+claude.ai conversations ─┐   n8n pending-memory poller   Supabase             MCP server on Render
+Claude Code sessions ────┼─► (every 2 min) ──► n8n       (Postgres+pgvector)  https://cais-mcp-server.onrender.com
+  (log_memory via MCP)   │   ingest workflow: 7-way      memories, tasks,       ▲            ▲
+iOS voice notes ─────────┘   extraction + embeddings     entities, decisions,   │            │
+  (n8n webhook direct)                                   insights, artifacts  claude.ai   Claude Code
+```
+
+- **Supabase project:** `https://erwxszdcisyuyjmefvbj.supabase.co` (the URL in older
+  docs, `wwqdkiphfpdczgmnxxrt`, is the *old* project — dead)
+- **MCP server:** `backend/app/mcp/server.py`, deployed on Render (Starter instance,
+  root dir `backend`, start `python -m app.mcp.server`), GitHub repo
+  `zanemoore575/cais-command-centre` (private)
+- **n8n:** `https://n8n-service-8act.onrender.com` — ingest workflow + pending
+  poller + voice-note webhook are the only load-bearing workflows left
+- **MCP tools (18):** discover_database, get_tasks, get_recent_memories,
+  search_memories, search_entities, get_memory, get_decisions, get_reflections,
+  get_strategic_insights, get_customer_insights, log_memory, create_task,
+  complete_task, update_task, merge_tasks, save_artifact, search_artifacts,
+  get_artifact
+
+## Live data snapshot (2026-07-11)
+
+| Table | Rows | Notes |
+|---|---|---|
+| memories | 442 | Apr 2025 → today; 303 claude_conversation, 65 shortcut_voice, 53 claude_task_creation, 13 artifact |
+| tasks | 1,391 | **1,281 open** — see task-flood issue below |
+| entities | 3,548 | 140 people, 221 companies, 433 projects, 237 tools |
+| decisions | 1,152 | |
+| reflections | 1,561 | |
+| strategic_insights | 1,655 | |
+| customer_insights | 449 | |
+| themes | 313 | |
+| artifacts | 13 | all `authored`, mostly Jake/Core Finance Phase 1 docs |
+
+## Active workstreams (reconstructed from live memories, 17 Jun → 11 Jul)
+
+1. **Jake / Core Finance — Phase 1 Intake Assistant.** The main event. Built,
+   QA'd, and showcased live; Jake responded very positively (5 Jul) and pricing
+   strategy was refined the same day. Since then: PII-free analytics layer (7 Jul),
+   n8n bug fixes + repo hygiene (8 Jul), Phase 2 scoped as post-call brokerage
+   admin automation (8 Jul), plain-English system guide (10 Jul), all Sonnet API
+   calls upgraded to Claude Sonnet 5 (11 Jul). Open question: how the Salestrekker
+   paste block gets used (task, 10 Jul).
+2. **Moore AI Studios relaunch.** Instagram launch strategy + founder-intro
+   carousel (5–9 Jul), evergreen content bank ("The chasing is the job" carousel
+   built and QA'd 8–11 Jul), home-page copy rewrite pending (task, 4 Jul).
+3. **Greenmachine chatbot** — final polish sweep pending (shipping info, task 2 Jul).
+4. **Command Centre itself** — this doc refresh; daily check-in page (see below).
+
+## Known issues (found auditing live DB, 2026-07-11)
+
+1. **Task flood: 1,281 open tasks, ~989 created in June 2026** — the bulk history
+   import + per-conversation extraction generated tasks faster than anything closes
+   them. 965 of the newest 1,000 have no `entity_name`. `priority` is null on
+   effectively every row (the 2026-06-17 "real priority extraction" writes urgency
+   well, but priority never gets populated). Needs a triage strategy — probably a
+   bulk archive of pre-June extractions + tighter extraction criteria.
+2. **`agent_get_tasks` is hard-capped at `LIMIT 25`** (task_writeback_migration.sql:251)
+   and sorts stale February "immediate" tasks first — so the MCP get_tasks tool
+   never surfaces the 53 genuinely fresh July tasks. Fix: raise/parameterise limit,
+   sort recent-first, or filter by created window.
+3. **62 memories (14%) are invisible to recall tools**, which filter on
+   `status='completed'`:
+   - 26 stuck at `claimed` (23–29 Jun, all claude_conversation) — the poller claimed
+     them but extraction never completed; a week of Claude conversations is
+     un-recallable. Needs re-drive (reset to `pending`).
+   - 33 at `indexed` (16 Jun–1 Jul, mostly shortcut_voice) — have embeddings and
+     summaries but **zero extracted entities**, and are skipped by
+     `get_recent_memories`/theme search. `indexed` is a status the docs never knew
+     about; either the voice pipeline changed, or these should be flipped to
+     `completed` after backfilling extraction.
+   - 2 `transcribed` (23–24 Jun voice notes), 1 `extracting` (Dec 2025) — stuck.
+4. **`living_context` is empty and orphaned** — its updater (Telegram `/end`) is
+   retired. Either delete it or re-home the concept (e.g. a periodic Claude-written
+   summary memory).
+5. **claude.ai MCP connector token expires** and requires manual re-auth in
+   claude.ai connector settings (hit on 2026-07-11 from Claude Code). Worth checking
+   whether the server can issue longer-lived/refresh tokens.
+6. **Docs drift** — `Workflows/CLAUDE_CODE_CONTEXT.md` pointed at the dead Supabase
+   project and described the retired Telegram architecture as primary (fixed
+   2026-07-11, this refresh).
+
+## Daily check-in page
+
+`daily-checkin/generate_checkin.py` pulls live data (fresh open tasks, recent
+memories, decisions, pipeline health) and renders a single self-contained HTML
+page — no external requests, light/dark aware, hostable anywhere (drop it behind
+the website, open it locally, or publish as a Claude artifact).
+
+Run it:
+```bash
+python3 daily-checkin/generate_checkin.py     # writes daily-checkin/checkin.html
+```
+Credentials come from `backend/.env` (SUPABASE_URL / SUPABASE_SERVICE_KEY).
+It is read-only by design — closing/editing tasks stays in claude.ai/Claude Code
+via the MCP write-back tools. Options for automating the daily run: local cron,
+a Claude Code scheduled routine, or a small Render cron job that pushes the HTML
+to the website.
 
 ## Current priorities
-1. Confirm feature status and remove outdated phase-only docs.
-2. Finish people tracking and relationship views.
-3. Build dashboard timeline and progress visualizations.
-4. Sync Claude Code project context and living docs.
-5. Keep `LIVING_DOC.md` updated with each progress change.
 
-## Next actions
-- Review backend and frontend feature completeness.
-- Archive old phase-specific notes if they are no longer the primary source.
-- Add a short summary to `Workflows/CLAUDE_CODE_CONTEXT.md` for Claude Code helpers.
-- Use this file as the source of truth for progress, scope, and next steps.
+1. Decide the task-triage strategy (bulk-archive June flood? tighten extraction?)
+   and fix `agent_get_tasks` (limit + sort) so get_tasks becomes useful again.
+2. Re-drive the 62 stuck/invisible memories and align on one terminal status
+   (`completed`) so recall sees everything.
+3. Make the daily check-in a habit: automate generation + decide hosting.
+4. Re-authorize the claude.ai MCP connector (and Gmail/Calendar connectors).
+5. Keep this doc updated with each progress change — it froze for 3.5 weeks while
+   the system was its most active; the check-in page should help surface drift.
 
-## How to use this doc with Claude Code
-- `README.md` is the project landing page.
-- `LIVING_DOC.md` is the active progress tracker.
-- `Workflows/CLAUDE_CODE_CONTEXT.md` provides Claude Code-specific system context.
-- When any progress or scope changes, update `LIVING_DOC.md` first.
+## Changelog
 
-## Important links
-- Setup guides: `SETUP_TUTORIAL.md`, `QUICK_START.md`, `EASIEST_SETUP.md`
-- Backend docs: `backend/README.md`
-- Frontend docs: `frontend/README.md`
-- MCP / Claude connector: `README_MCP.md`
-- Claude Code context: `Workflows/CLAUDE_CODE_CONTEXT.md`
-- Implementation reference: `archive/IMPLEMENTATION_SUMMARY.md`
-- Archived docs: `archive/`
+### 2026-07-11 — Doc refresh + daily check-in
+- Rewrote LIVING_DOC/README/CLAUDE_CODE_CONTEXT against the live database after
+  3.5 weeks of drift; recorded the Telegram→claude.ai pivot as permanent.
+- Added `daily-checkin/generate_checkin.py` + first generated page.
+- Audited pipeline health; logged the six known issues above.
+
+### 2026-06-17 — Task write-back + artifact storage + hosting (condensed)
+- **Write/ingest fix:** `log_memory` rows sat at `pending` forever; added the
+  pending-memory poller (every 2 min) + `/webhook/ingest-pending` update-in-place
+  entry point; fixed pgvector `JSON.stringify` embedding bug; backfilled embeddings.
+  Any future writer just inserts with `status='pending'`.
+- **MCP hosting:** moved off Mac+ngrok to Render (`cais-mcp-server.onrender.com`);
+  repo to GitHub; Python 3.12 pin; pydantic unpin; secrets live only in Render env.
+- **Task write-back:** complete/update/create/merge MCP tools; `priority`,
+  `due_date`, `entity_name` columns; pg_trgm dedup-on-ingest (>0.45 similarity
+  drops near-duplicates); rewrote extraction prompt for real urgency spread.
+- **Artifact storage:** `artifacts` table + private Storage bucket; save (upsert,
+  dedup-refusal), search, get tools; companion memory row embedded server-side
+  (OpenAI text-embedding-3-small, needs OPENAI_API_KEY on the MCP server);
+  authored docs store canonical markdown, uploads store binary.
+- Full detail: git history 2026-06-17 and `Workflows/CLAUDE_CODE_CONTEXT.md` changelog.
 
 ## Notes
-- Keep this file lean and current.
-- Preserve detailed phase or troubleshooting docs as reference, not as the primary status source.
-- If the project direction changes, update the status, priorities, and next actions here.
-
-## Archived docs
-The root directory has been decluttered. Old phase-specific implementation and troubleshooting docs are now in `archive/`.
-
-## Current issue summary
-- The phase-separated UI is implemented and working.
-- There is a current backend streaming issue: Claude API calls can block for 20-30 seconds, causing tool events to arrive in a burst instead of real time.
-- The backend needs a streaming refactor to deliver true Claude Code-style phase streaming.
-
-## Write/ingest path fix (2026-06-17)
-- **Problem:** memories written via Claude's `log_memory` MCP tool (`backend/app/mcp/supabase_tools.py`) were inserted into Supabase with `status: pending` but nothing ever triggered the n8n extraction pipeline — only the voice-note path called the ingest webhook. Pending rows stayed unprocessed forever: no entities/decisions/themes extracted, no embedding, invisible to `get_recent_memories` and `search_memories`.
-- **Fix (source-agnostic, DB-driven):**
-  - New n8n workflow `Workflows/n8n workflows/pending-memory-poller-workflow.json` — runs every 2 minutes, selects `memories` where `status = 'pending'`, immediately flips each to `claimed` (avoids double-processing since n8n webhooks ack before the workflow finishes), then POSTs to a new `/webhook/ingest-pending` endpoint.
-  - `Workflows/n8n workflows/ingest-workflow.json` — added a second entry point (`Webhook Pending` → `Update Memory To Extracting`) that updates the existing row in place instead of inserting a duplicate, then flows into the same extraction/embedding nodes the voice path already uses. The original `/webhook/ingest-conversation` path is untouched.
-  - Also fixed a real embedding bug found along the way: the "Insert Embeddings" node was `JSON.stringify`-ing the embedding array before writing to the pgvector `embeddings` column; changed to pass the raw array, matching the working voice-path pattern.
-  - Added `Workflows/backfill_embeddings.py` — one-time script to embed existing `completed` memories that had `embeddings: null`. Run once; not part of the ongoing pipeline.
-- **Now true for any future write source:** anything inserted into `memories` with `status: pending` gets picked up automatically — no per-source code changes needed (e.g. `log_memory` itself didn't need to change).
-- **Verified live (2026-06-17):** test memory 217 went `pending` → fully extracted (theme, entities, strategic insights) → embedded → returned by both `search_memories` and `get_recent_memories`. `search_memories("Jake")` confirmed returning 9 pre-existing memories. `discover_database` showed embeddings count (210) at parity with completed memories (202), up from ~2 before the fix.
-
-## MCP server hosting (2026-06-17)
-- Moved the MCP server (`backend/app/mcp/server.py`) off the local Mac + ngrok tunnel and onto **Render** as an always-on Web Service: `https://cais-mcp-server.onrender.com`.
-- Repo is now on GitHub at `zanemoore575/cais-command-centre` (private) — required for Render's GitHub-based deploy.
-- Code changes made to support hosting:
-  - Server now reads `PORT` (Render-injected) ahead of `MCP_PUBLIC_URL`/`MCP_PORT`, and defaults host to `0.0.0.0`.
-  - Added a `/health` route for Render's health check.
-  - Pinned `backend/runtime.txt` to `python-3.12.7` (also set as `PYTHON_VERSION` env var in Render — needed because pydantic-core had no prebuilt wheel for the Python 3.14 Render defaulted to).
-  - Unpinned `pydantic==2.10.2` to `pydantic>=2.11.0` in `backend/requirements.txt` — the old pin conflicted with `mcp>=1.27`'s requirement of `pydantic>=2.11.0`.
-- Render config: Root Directory `backend`, Build Command `pip install -r requirements.txt`, Start Command `python -m app.mcp.server`, Starter instance (not Free — avoids cold-start spin-down), single instance (no autoscaling, since OAuth/session state is in-memory).
-- Secrets (`SUPABASE_SERVICE_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_CLIENT_SECRET`, etc.) live only in Render's Environment tab, never committed — `backend/.env` stays gitignored.
-- Google OAuth client's authorized redirect URIs now include `https://cais-mcp-server.onrender.com/oauth/google/callback` alongside the old ngrok one.
-- claude.ai connector repointed at `https://cais-mcp-server.onrender.com/mcp`; verified `get_recent_memories`, `get_tasks`, `search_memories` all working end-to-end.
-- Local MCP server process and ngrok tunnel have been stopped — the Mac is no longer required for the MCP connector to work.
-- Known item noted at the time: `search_memories` sometimes appeared to be missing entries. Root cause turned out to be the write/ingest path, not credentials — see "Write/ingest path fix (2026-06-17)" above.
-
-## Task write-back (2026-06-17)
-- **Goal:** make tasks manageable, not just readable — Claude can now close, edit, create, and merge tasks instead of only listing them. Build brief: `cais-build-brief-tasks-daily-brief.md` (Part A).
-- **New MCP tools** (`backend/app/mcp/server.py` + `supabase_tools.py`): `complete_task`, `update_task`, `create_task`, `merge_tasks` — same direct-Supabase-RPC pattern as the existing read tools.
-- **Schema** (`Workflows/task_writeback_migration.sql`): added `due_date`, `priority`, `entity_name` to `tasks`; enabled `pg_trgm` for fuzzy dedup matching; new RPCs `agent_complete_task`, `agent_update_task`, `agent_create_task`, `agent_merge_tasks`, `agent_find_similar_open_task`; refreshed `agent_get_tasks` to sort by priority → due_date → urgency.
-- **Dedup on ingest** (`Workflows/n8n workflows/ingest-workflow.json`): added `Check For Duplicate Task` → `If Duplicate Found` between the existing `If5` and `Insert Tasks` nodes. A new extracted task is silently dropped if a trigram-similar (>0.45) open task already exists, instead of creating a near-duplicate every time a topic comes up again.
-- **Real prioritization**: rewrote the `Extract Action Items` LLM prompt with explicit urgency/priority criteria (previously everything defaulted to `urgency: immediate`, making the field meaningless) — now extracts `priority`, `due_date`, and `entity_name` per task too.
-- **Bug found + fixed during verification:** `agent_find_similar_open_task` initially declared its similarity column as `FLOAT` but Postgres's `similarity()` returns `real` — caused every dedup check to fail with a type error. Fixed and re-verified live (correctly found a 0.93-similarity match on near-duplicate phrasing, and correctly returned no match on unrelated text).
-- **Verified live (2026-06-17):** all 5 acceptance tests passed against the deployed Supabase instance — create/complete/update/dedup/priority-sort all confirmed working end-to-end, test data cleaned up after.
-
-## Artifact storage (2026-06-17)
-- **Goal:** let Claude.ai save real documents (proposals, guides, uploaded files) it works on with Zane, find them later by title/tag/client, and pull back the exact saved content — including overwrite-in-place so an edit/recall/re-edit loop doesn't pile up stale duplicates. Design brief + Claude.ai's resolved decisions: `cais-build-brief-artifact-storage.md`.
-- **Key design call:** store the *source*, not the rendered file, for anything Claude authors. A proposal's canonical form is its markdown/text (`source_content`); PDFs are rendered fresh in Claude's own sandbox when needed, never round-tripped as stale binary. Uploaded files (e.g. a client's PDF) are the other case — canonical form is the binary itself, stored in Supabase Storage.
-- **New MCP tools:** `save_artifact` (create or overwrite-in-place via `artifact_id`; refuses to silently create a same-title+entity duplicate), `search_artifacts` (by title/tag/entity/content), `get_artifact` (returns text by default, raw file bytes only with `include_file=true`).
-- **Schema + Storage** (`Workflows/artifact_storage_migration.sql`): new `artifacts` table (`kind`: authored/uploaded, `format`, `source_content`, `storage_path`, `tags`, `entity_name`, `memory_id` link); new Supabase Storage bucket `artifacts` (private); RPCs `agent_save_artifact` (upsert by client-generated UUID), `agent_search_artifacts`, `agent_get_artifact`, `agent_find_artifact_by_title`.
-- **Searchability without n8n:** every save writes a companion `memories` row (`source: 'artifact'`) and embeds it directly via a server-side OpenAI call (`text-embedding-3-small`, same model n8n uses) — deliberately skips the 7-way extraction pipeline (entities/decisions/tasks/etc.) since running "extract tasks" over proposal boilerplate isn't useful signal. Requires `OPENAI_API_KEY` in the MCP server's env (local `.env` + Render) — new requirement, separate from n8n's own OpenAI credential.
-- **Verified live (2026-06-17):** full loop tested against deployed Supabase — create → embed (confirmed real 1536-dim vector written) → dedup-refusal on same title+entity → overwrite-in-place via returned `artifact_id` → search by entity and by content → binary upload/download round-trip (byte-for-byte match). One real bug found and fixed: the table grant was missing `DELETE`, added to the migration.
-- **Out of scope for this build (deferred, not rejected):** version history/rollback (replace-only for now), large-file presigned-URL upload path, server-side PDF/docx rendering.
+- Keep this file lean and current; update it first when progress changes.
+- `README.md` is the landing page; `Workflows/CLAUDE_CODE_CONTEXT.md` is the deep
+  technical reference (schema, RPCs, data flows).
+- Old phase docs live in `archive/` — reference only.
