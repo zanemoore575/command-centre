@@ -1,0 +1,261 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Daily Brief — 6am push\n\nSETUP (one-time):\n1. Create the new Telegram bot via @BotFather, add its token as an n8n Telegram credential, and select it on the 'Send Telegram Brief' node.\n2. Message the bot once, then get your chat id (e.g. via @userinfobot) and paste it into 'Send Telegram Brief' → Chat ID.\n3. In 'Format For Telegram', replace REPLACE_WITH_CHECKIN_TOKEN in CHECKIN_URL with the real CHECKIN_TOKEN (same value as the Render env var).\n4. Requires task_triage_migration.sql to be applied in Supabase (agent_get_tasks with limit_count + suggested status).\n\nPush-only by design — act on tasks via the check-in page link or claude.ai, not by replying here.",
+        "height": 340,
+        "width": 400
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-560, -640],
+      "id": "a1b2c3d4-1111-4001-9001-dailybrief001",
+      "name": "Setup Notes"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-560, -416],
+      "id": "b2c3d4e5-2222-4002-9002-dailybrief002",
+      "name": "Every Day 6am NZT"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erwxszdcisyuyjmefvbj.supabase.co/rest/v1/rpc/agent_get_tasks",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ task_status: \"open\", limit_count: 60 }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [-320, -560],
+      "id": "c3d4e5f6-3333-4003-9003-dailybrief003",
+      "name": "Get Open Tasks",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erwxszdcisyuyjmefvbj.supabase.co/rest/v1/rpc/agent_get_tasks",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ task_status: \"suggested\", limit_count: 15 }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [-320, -416],
+      "id": "d4e5f6a7-4444-4004-9004-dailybrief004",
+      "name": "Get Suggested Tasks",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erwxszdcisyuyjmefvbj.supabase.co/rest/v1/rpc/agent_get_recent_memories",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ limit_count: 10 }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [-320, -272],
+      "id": "e5f6a7b8-5555-4005-9005-dailybrief005",
+      "name": "Get Recent Memories",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Assemble a compact payload for Claude — trim fields to keep tokens low.\nconst openRaw = $('Get Open Tasks').all().map(i => i.json).filter(t => t && t.task_id);\nconst suggestedRaw = $('Get Suggested Tasks').all().map(i => i.json).filter(t => t && t.task_id);\nconst memoriesRaw = $('Get Recent Memories').all().map(i => i.json).filter(m => m && m.memory_id);\n\nconst slimTask = t => ({\n  task: t.task_text,\n  urgency: t.urgency,\n  due: t.due_date || null,\n  category: t.category || null,\n  who: t.entity_name || null,\n  age_days: Math.round((Date.now() - new Date(t.created_date)) / 86400000),\n});\n\nconst payload = {\n  date_nz: new Date().toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Pacific/Auckland' }),\n  open_tasks: openRaw.slice(0, 40).map(slimTask),\n  suggested_inbox: suggestedRaw.slice(0, 10).map(slimTask),\n  recent_memories: memoriesRaw.slice(0, 8).map(m => ({\n    date: (m.created_at || '').slice(0, 10),\n    theme: (m.main_theme || m.summary || '').split('\\n')[0].slice(0, 180),\n  })),\n};\n\nconst system = `You are Zane's chief of staff writing his 6am daily brief. Zane runs Moore AI Studios (AI solutions for small businesses in NZ; current clients/projects: Jake at Core Finance, Greenmachine, plus his own content/marketing and the Command Centre system).\\n\\nYou get JSON: open_tasks (already sorted soonest-due, most urgent first), suggested_inbox (auto-extracted tasks he hasn't accepted yet), recent_memories (what happened lately).\\n\\nWrite a Telegram message using ONLY these HTML tags: <b>, <i>. No markdown, no headers, no other tags. Under 3200 characters. Structure:\\n1. One short greeting line with the date. No fluff, no 'I hope'.\\n2. <b>Top 3 today</b> — the three highest-leverage tasks. One line each: the task, then <i>why now</i> (deadline, client momentum, what it unblocks). Choose by judgement, not just list order.\\n3. <b>Also on the board</b> — up to 4 more worth remembering, grouped by client/project, one line each.\\n4. <b>Inbox to triage</b> — only if suggested_inbox is non-empty: up to 5, one line each, so he can keep/dismiss on the check-in page.\\n5. <b>Watch</b> — only if recent_memories reveal an open loop, risk, or someone he's waiting on: one or two lines.\\n\\nBe specific — use client and task names from the data. Never invent tasks or deadlines. Total read time should be under a minute.`;\n\nreturn [{\n  json: {\n    anthropic_body: {\n      model: 'claude-sonnet-5',\n      max_tokens: 1600,\n      system,\n      messages: [{ role: 'user', content: JSON.stringify(payload) }],\n    },\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-80, -416],
+      "id": "f6a7b8c9-6666-4006-9006-dailybrief006",
+      "name": "Build Brief Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.anthropic_body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [160, -416],
+      "id": "a7b8c9d0-7777-4007-9007-dailybrief007",
+      "name": "Claude — Write Daily Brief",
+      "credentials": {
+        "anthropicApi": {
+          "id": "6AhJQz2ZKkf4Ce3r",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Replace REPLACE_WITH_CHECKIN_TOKEN with the real CHECKIN_TOKEN value.\nconst CHECKIN_URL = 'https://cais-mcp-server.onrender.com/checkin?token=REPLACE_WITH_CHECKIN_TOKEN';\n\nconst res = $json;\n// Sonnet 5 runs adaptive thinking by default — take only the text blocks.\nlet text = (res.content || [])\n  .filter(b => b.type === 'text')\n  .map(b => b.text)\n  .join('\\n')\n  .trim();\n\nif (!text) {\n  text = '<b>Daily brief failed to generate</b> — check the daily-brief workflow execution log.';\n}\n\nconst footer = `\\n\\n<a href=\"${CHECKIN_URL}\">Open today's check-in →</a>`;\nconst MAX = 4096 - footer.length - 20;\nif (text.length > MAX) {\n  text = text.slice(0, MAX) + '…';\n}\n\nreturn [{ json: { message: text + footer } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, -416],
+      "id": "b8c9d0e1-8888-4008-9008-dailybrief008",
+      "name": "Format For Telegram"
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML",
+          "disable_web_page_preview": true
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [640, -416],
+      "id": "c9d0e1f2-9999-4009-9009-dailybrief009",
+      "name": "Send Telegram Brief"
+    }
+  ],
+  "connections": {
+    "Every Day 6am NZT": {
+      "main": [
+        [
+          {
+            "node": "Get Open Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Open Tasks": {
+      "main": [
+        [
+          {
+            "node": "Get Suggested Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Suggested Tasks": {
+      "main": [
+        [
+          {
+            "node": "Get Recent Memories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Memories": {
+      "main": [
+        [
+          {
+            "node": "Build Brief Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Brief Payload": {
+      "main": [
+        [
+          {
+            "node": "Claude — Write Daily Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude — Write Daily Brief": {
+      "main": [
+        [
+          {
+            "node": "Format For Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format For Telegram": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Brief",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Pacific/Auckland"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

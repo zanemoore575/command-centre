@@ -38,16 +38,37 @@ bottom). n8n is a pipeline, not an agent.
 | Ingestion Pipeline | `n8n workflows/ingest-workflow.json` | 7-way extraction (entities, decisions, reflections, insights, customer insights, tasks, themes) + embedding. Two entry points: `/webhook/ingest-conversation` (voice path — inserts row) and `/webhook/ingest-pending` (poller path — updates row in place). Task extraction dedups via `agent_find_similar_open_task` (>0.45 trigram) before insert |
 | Pending Memory Poller | `n8n workflows/pending-memory-poller-workflow.json` | Every 2 min: claims any `memories` row at `status='pending'` (→`claimed`), POSTs to `/webhook/ingest-pending`. Makes ingestion source-agnostic — any writer just inserts with `status='pending'` |
 | Shortcut Voice | `shortcut_voicenote_workflow.json` | iOS Shortcut voice-note ingestion |
+| Daily Brief | `n8n workflows/daily-brief-workflow.json` | **NEW (2026-07-12)** — 6:00am Pacific/Auckland cron: open + suggested tasks + recent memories → Anthropic API (claude-sonnet-5) writes the day plan → Telegram push (new bot, push-only, no reply capture) with a link to the live check-in page |
 
-`n8n workflows/telegram_*.json` are retired — do not modify or deploy them.
+`n8n workflows/telegram_*.json` (the old bot/agent) are retired — do not modify
+or deploy them. The daily brief's Telegram *push* is deliberate and fine — it's
+the conversational agent that stays dead.
 
 ## MCP tools (18, defined in `backend/app/mcp/server.py` + `supabase_tools.py`)
 
-- **Read:** `discover_database`, `get_tasks`, `get_recent_memories`,
+- **Read:** `discover_database`, `get_tasks(status, limit)`, `get_recent_memories`,
   `search_memories`, `search_entities`, `get_memory`, `get_decisions`,
   `get_reflections`, `get_strategic_insights`, `get_customer_insights`
 - **Write:** `log_memory`, `create_task`, `complete_task`, `update_task`,
-  `merge_tasks`, `save_artifact`, `search_artifacts`, `get_artifact`
+  `merge_tasks`, `archive_task`, `promote_task`, `snooze_task`,
+  `save_artifact`, `search_artifacts`, `get_artifact`
+
+## Live check-in page (added 2026-07-12)
+
+`backend/app/mcp/checkin.py`, registered as custom routes in `server.py`
+(outside MCP OAuth, gated by the `CHECKIN_TOKEN` env var; 503 when unset):
+
+- `GET /checkin?token=…` — the daily check-in, rendered live from Supabase on
+  every load. Focus tasks grouped by workstream, suggested-task inbox
+  (keep/dismiss), done-today, week-in-memory, pipeline health.
+- `POST /checkin/action` — `{token, task_id, action: complete|archive|promote|snooze, until?}`
+  → the corresponding `agent_*` RPC. Returns 501 with a hint if the triage
+  migration hasn't been run yet.
+- Custom-domain serving: set `CHECKIN_PUBLIC_HOST` so the extra Host header
+  passes DNS-rebinding protection; attach the domain to the Render service.
+- Task-view rules: only tasks created after `FRESH_CUTOFF` (2026-06-17) are
+  listed; older open tasks are counted as backlog. "Done today" is the NZ day
+  (`CHECKIN_TZ`, default Pacific/Auckland).
 
 ---
 
@@ -86,9 +107,13 @@ tasks
 ├── due_date (DATE, nullable)
 ├── entity_name (TEXT, nullable) ⚠ null on ~96% of rows
 ├── category (TEXT) - 'build' | 'outreach' | 'content' | 'research' | 'follow_up' | 'personal' | pipe-combos
-├── status (TEXT) - 'open' | 'completed' | 'merged'
+├── status (TEXT) - 'suggested' | 'open' | 'completed' | 'archived' | 'merged'
+│     ('suggested' = extracted, awaiting keep/dismiss; 'archived' = dismissed,
+│      preserved — both added 2026-07-12)
 ├── completed (BOOLEAN)
-└── completed_at (TIMESTAMPTZ)
+├── completed_at (TIMESTAMPTZ)
+├── archived_at (TIMESTAMPTZ, added 2026-07-12)
+└── snoozed_until (DATE, added 2026-07-12 — open but hidden until this date)
 
 artifacts
 ├── id (UUID)
@@ -133,8 +158,25 @@ agent_complete_task(target_task_id TEXT) → TABLE
 agent_update_task(target_task_id TEXT, new_task, new_urgency, new_priority, new_due_date, new_category) → TABLE
 agent_create_task(new_task TEXT, new_context, new_urgency, new_category, new_due_date, new_entity_name, source_memory_id) → TABLE
 agent_merge_tasks(keep_task_id TEXT, merge_task_ids TEXT[]) → TABLE
-agent_find_similar_open_task(candidate_text TEXT, match_threshold FLOAT) → TABLE  -- pg_trgm dedup
+agent_find_similar_open_task(candidate_text TEXT, match_threshold FLOAT) → TABLE
+  -- pg_trgm dedup; post-triage-migration it matches open + suggested + tasks
+  -- archived in the last 30 days (dismissals stay dismissed)
 ```
+
+**Task triage (task_triage_migration.sql, 2026-07-12):**
+```sql
+agent_get_tasks(task_status TEXT DEFAULT 'open', limit_count INT DEFAULT 50) → TABLE
+  -- REPLACES the old LIMIT-25 version. Statuses: open (excludes snoozed),
+  -- snoozed, suggested, completed, archived, merged, all. Sort: due_date →
+  -- urgency → task created_at DESC (created_date is now the TASK's date,
+  -- not the memory's). Limit clamped 1..200.
+agent_archive_task(target_task_id TEXT) → TABLE   -- dismiss; sets archived_at
+agent_promote_task(target_task_id TEXT) → TABLE   -- suggested/archived → open
+agent_snooze_task(target_task_id TEXT, until_date DATE) → TABLE
+```
+Task lifecycle: extraction inserts `suggested` → Zane keeps (`open`) or dismisses
+(`archived`); `open` can be completed, snoozed (stays open, hidden until date),
+or archived. Nothing is deleted.
 
 **Artifacts:**
 ```sql
@@ -240,6 +282,19 @@ history, `../archive/`, and the `n8n workflows/telegram_*.json` files.
 ---
 
 ## Changelog
+
+### 2026-07-12: Task triage + live check-in + daily brief
+- `task_triage_migration.sql`: suggested/archived statuses, snooze, bulk archive
+  of the pre-17-Jun open-task flood, fixed `agent_get_tasks` (limit param, sane
+  sort, task-own created_at), archive/promote/snooze RPCs, dedup extended to
+  suggested + recent dismissals.
+- MCP server: `/checkin` live page + `/checkin/action` write endpoints
+  (`checkin.py`); new tools archive_task/promote_task/snooze_task; get_tasks
+  gains limit + statuses; `CHECKIN_TOKEN`/`CHECKIN_PUBLIC_HOST`/`CHECKIN_TZ` env.
+- Ingest workflow staged: Insert Tasks → `status='suggested'`; strict extraction
+  prompt (hard cap 5 tasks/conversation, explicit commitments only).
+- New `daily-brief-workflow.json` (6am NZT, Sonnet 5 plan → Telegram push).
+- Go-live steps: `../SETUP_CHECKIN_BRIEF.md`.
 
 ### 2026-07-11: Doc refresh against live DB + architecture reality
 - Rewrote this file around the MCP-centric architecture; Telegram era moved to a

@@ -75,6 +75,9 @@ from app.mcp.supabase_tools import (
     tool_search_entities,
     tool_get_decisions,
     tool_get_tasks,
+    tool_archive_task,
+    tool_promote_task,
+    tool_snooze_task,
     tool_get_insights,
     tool_get_customer_insights,
     tool_get_reflections,
@@ -98,13 +101,23 @@ _provider = GoogleOAuthProvider()
 from urllib.parse import urlparse as _urlparse
 _public_host = _urlparse(_MCP_PUBLIC_URL).netloc
 
+# Extra host for the check-in page when served from a custom domain
+# (e.g. checkin.mooreaistudios.com pointed at this Render service).
+_CHECKIN_PUBLIC_HOST = os.environ.get("CHECKIN_PUBLIC_HOST", "")
+
+_allowed_hosts = ["127.0.0.1:*", "localhost:*", "[::1]:*", _public_host]
+_allowed_origins = [
+    "http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*",
+    f"https://{_public_host}",
+]
+if _CHECKIN_PUBLIC_HOST:
+    _allowed_hosts.append(_CHECKIN_PUBLIC_HOST)
+    _allowed_origins.append(f"https://{_CHECKIN_PUBLIC_HOST}")
+
 _transport_security = TransportSecuritySettings(
     enable_dns_rebinding_protection=True,
-    allowed_hosts=["127.0.0.1:*", "localhost:*", "[::1]:*", _public_host],
-    allowed_origins=[
-        "http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*",
-        f"https://{_public_host}",
-    ],
+    allowed_hosts=_allowed_hosts,
+    allowed_origins=_allowed_origins,
 )
 
 mcp = FastMCP(
@@ -142,6 +155,23 @@ async def google_oauth_callback(request: Request) -> Response:
 @mcp.custom_route("/health", methods=["GET"])
 async def health(request: Request) -> Response:
     return Response(content="ok", media_type="text/plain")
+
+
+# ---------------------------------------------------------------------------
+# Daily check-in page (token-gated, outside MCP OAuth — see checkin.py)
+# ---------------------------------------------------------------------------
+
+from app.mcp.checkin import checkin_page as _checkin_page, checkin_action as _checkin_action
+
+
+@mcp.custom_route("/checkin", methods=["GET"])
+async def checkin(request: Request) -> Response:
+    return await _checkin_page(request)
+
+
+@mcp.custom_route("/checkin/action", methods=["POST"])
+async def checkin_action(request: Request) -> Response:
+    return await _checkin_action(request)
 
 
 # ---------------------------------------------------------------------------
@@ -224,14 +254,53 @@ def get_decisions(topic: Optional[str] = None, days: int = 365) -> list[dict]:
 
 
 @mcp.tool()
-def get_tasks(status: str = "open") -> list[dict]:
+def get_tasks(status: str = "open", limit: int = 50) -> list[dict]:
     """
-    Get action items/tasks. Ordered by urgency (immediate → this_week → soon).
+    Get action items/tasks, soonest-due and most urgent first, recent before stale.
 
     Args:
-        status: 'open' (default), 'completed', or 'all'.
+        status: 'open' (default, excludes snoozed), 'suggested' (auto-extracted
+            inbox awaiting keep/dismiss), 'snoozed', 'completed', 'archived', or 'all'.
+        limit: Max rows (default 50, max 200).
     """
-    return tool_get_tasks(status=status)
+    return tool_get_tasks(status=status, limit=limit)
+
+
+@mcp.tool()
+def archive_task(task_id: str) -> dict:
+    """
+    Dismiss a task — sets status 'archived' (preserved, not deleted) and stamps
+    archived_at. Use for triage: stale, irrelevant, or duplicate-ish tasks.
+
+    Args:
+        task_id: The task's UUID, from get_tasks.
+    """
+    return tool_archive_task(task_id=task_id)
+
+
+@mcp.tool()
+def promote_task(task_id: str) -> dict:
+    """
+    Accept a 'suggested' (auto-extracted) task onto the open list — or resurrect
+    an archived one. Clears any snooze.
+
+    Args:
+        task_id: The task's UUID, from get_tasks(status='suggested').
+    """
+    return tool_promote_task(task_id=task_id)
+
+
+@mcp.tool()
+def snooze_task(task_id: str, until: str) -> dict:
+    """
+    Hide an open task until a date. It stays open, just out of the default view
+    until then.
+
+    Args:
+        task_id: The task's UUID, from get_tasks.
+        until: ISO date (YYYY-MM-DD) when it should reappear.
+    """
+    return tool_snooze_task(task_id=task_id, until=until)
 
 
 @mcp.tool()

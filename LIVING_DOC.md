@@ -1,6 +1,6 @@
 # Command Centre — Living Project Status
 
-Updated: 2026-07-11 (full refresh against live database — docs had been frozen at 2026-06-17)
+Updated: 2026-07-12 (task triage + live check-in + daily brief built; see `SETUP_CHECKIN_BRIEF.md` for go-live steps)
 
 ## What this system is now
 
@@ -43,11 +43,14 @@ iOS voice notes ─────────┘   extraction + embeddings     ent
   `zanemoore575/cais-command-centre` (private)
 - **n8n:** `https://n8n-service-8act.onrender.com` — ingest workflow + pending
   poller + voice-note webhook are the only load-bearing workflows left
-- **MCP tools (18):** discover_database, get_tasks, get_recent_memories,
+- **MCP tools (21):** discover_database, get_tasks, get_recent_memories,
   search_memories, search_entities, get_memory, get_decisions, get_reflections,
   get_strategic_insights, get_customer_insights, log_memory, create_task,
-  complete_task, update_task, merge_tasks, save_artifact, search_artifacts,
-  get_artifact
+  complete_task, update_task, merge_tasks, archive_task, promote_task,
+  snooze_task, save_artifact, search_artifacts, get_artifact
+- **Live check-in page:** served by the MCP server at `/checkin?token=…`
+  (token-gated, rendered from live data on every load; complete/snooze/dismiss
+  buttons write back through the agent_* RPCs)
 
 ## Live data snapshot (2026-07-11)
 
@@ -82,14 +85,11 @@ iOS voice notes ─────────┘   extraction + embeddings     ent
 
 1. **Task flood: 1,281 open tasks, ~989 created in June 2026** — the bulk history
    import + per-conversation extraction generated tasks faster than anything closes
-   them. 965 of the newest 1,000 have no `entity_name`. `priority` is null on
-   effectively every row (the 2026-06-17 "real priority extraction" writes urgency
-   well, but priority never gets populated). Needs a triage strategy — probably a
-   bulk archive of pre-June extractions + tighter extraction criteria.
-2. **`agent_get_tasks` is hard-capped at `LIMIT 25`** (task_writeback_migration.sql:251)
-   and sorts stale February "immediate" tasks first — so the MCP get_tasks tool
-   never surfaces the 53 genuinely fresh July tasks. Fix: raise/parameterise limit,
-   sort recent-first, or filter by created window.
+   them. → **Fix built 2026-07-12** (bulk archive + `suggested` inbox + strict
+   extraction prompt), pending `SETUP_CHECKIN_BRIEF.md` step 1/4.
+2. **`agent_get_tasks` is hard-capped at `LIMIT 25`** and sorts stale February
+   "immediate" tasks first, so the MCP get_tasks tool never surfaces fresh tasks.
+   → **Fix built 2026-07-12** (`task_triage_migration.sql`), pending migration run.
 3. **62 memories (14%) are invisible to recall tools**, which filter on
    `status='completed'`:
    - 26 stuck at `claimed` (23–29 Jun, all claude_conversation) — the poller claimed
@@ -111,35 +111,55 @@ iOS voice notes ─────────┘   extraction + embeddings     ent
    project and described the retired Telegram architecture as primary (fixed
    2026-07-11, this refresh).
 
-## Daily check-in page
+## Daily task system (built 2026-07-11/12, pending go-live)
 
-`daily-checkin/generate_checkin.py` pulls live data (fresh open tasks, recent
-memories, decisions, pipeline health) and renders a single self-contained HTML
-page — no external requests, light/dark aware, hostable anywhere (drop it behind
-the website, open it locally, or publish as a Claude artifact).
+Three layers, all coded and verified — manual go-live steps in `SETUP_CHECKIN_BRIEF.md`:
 
-Run it:
-```bash
-python3 daily-checkin/generate_checkin.py     # writes daily-checkin/checkin.html
-```
-Credentials come from `backend/.env` (SUPABASE_URL / SUPABASE_SERVICE_KEY).
-It is read-only by design — closing/editing tasks stays in claude.ai/Claude Code
-via the MCP write-back tools. Options for automating the daily run: local cron,
-a Claude Code scheduled routine, or a small Render cron job that pushes the HTML
-to the website.
+1. **Triage** (`Workflows/task_triage_migration.sql` + staged ingest changes):
+   bulk-archives the June task flood (~1,238 rows, preserved not deleted), fixes
+   `agent_get_tasks` (parameterised limit, useful sort, task's own created_at),
+   adds `archived`/`suggested` statuses + snooze. New extracted tasks land as
+   `suggested` (an inbox to keep/dismiss) with a much stricter extraction prompt
+   (hard cap 5/conversation). Dedup also suppresses re-suggesting anything
+   dismissed in the last 30 days.
+2. **Live check-in** (`backend/app/mcp/checkin.py`): `/checkin` on the MCP
+   server — live-rendered, mobile-friendly, light/dark; tick to complete
+   (timestamped, filed to "Done today"), snooze 1d/1w, dismiss, keep/dismiss the
+   suggested inbox. Token-gated (`CHECKIN_TOKEN`); attach `checkin.<domain>` to
+   the Render service to put it behind the website. Verified 11/11 end-to-end
+   against the live DB. The static generator (`daily-checkin/`) still works for
+   snapshots/artifacts.
+3. **6am daily brief** (`Workflows/n8n workflows/daily-brief-workflow.json`):
+   n8n cron 6:00 Pacific/Auckland → pulls open + suggested tasks + recent
+   memories → claude-sonnet-5 writes the plan (top 3 with why, board by client,
+   inbox, watch items) → Telegram push (new bot, push-only) with a link to the
+   live page.
 
 ## Current priorities
 
-1. Decide the task-triage strategy (bulk-archive June flood? tighten extraction?)
-   and fix `agent_get_tasks` (limit + sort) so get_tasks becomes useful again.
+1. **Go-live checklist in `SETUP_CHECKIN_BRIEF.md`** — Supabase migration,
+   Render env + deploy, custom domain, n8n imports, new Telegram bot.
 2. Re-drive the 62 stuck/invisible memories and align on one terminal status
    (`completed`) so recall sees everything.
-3. Make the daily check-in a habit: automate generation + decide hosting.
-4. Re-authorize the claude.ai MCP connector (and Gmail/Calendar connectors).
-5. Keep this doc updated with each progress change — it froze for 3.5 weeks while
-   the system was its most active; the check-in page should help surface drift.
+3. Re-authorize the claude.ai MCP connector (and Gmail/Calendar connectors).
+4. Keep this doc updated with each progress change.
 
 ## Changelog
+
+### 2026-07-12 — Task triage + live check-in + 6am daily brief (all three phases)
+- **Triage:** `task_triage_migration.sql` (archived/suggested statuses, snooze,
+  bulk archive of pre-17-Jun open tasks, `agent_get_tasks` limit/sort fix, new
+  archive/promote/snooze RPCs, dedup covers suggested + recent dismissals);
+  ingest workflow staged: `Insert Tasks` → `status='suggested'`, strict
+  extraction prompt.
+- **Live check-in:** new `/checkin` page + `/checkin/action` endpoint on the MCP
+  server; three new MCP tools (archive_task, promote_task, snooze_task);
+  `get_tasks` gains `limit` + new statuses. End-to-end tested locally against
+  live Supabase (11/11 checks).
+- **Daily brief:** new n8n workflow, 6am NZT, Sonnet 5-written plan pushed via
+  a new Telegram bot (push-only — the Telegram *agent* stays retired).
+- Decision: skipped Trello — second source of truth, sync tax; the tasks table
+  + live page + push covers the same need with one datastore.
 
 ### 2026-07-11 — Doc refresh + daily check-in
 - Rewrote LIVING_DOC/README/CLAUDE_CODE_CONTEXT against the live database after

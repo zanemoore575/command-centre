@@ -3,6 +3,8 @@ MCP tool implementations that query Supabase directly.
 Uses the REST API via httpx so there's no ORM dependency.
 """
 
+from __future__ import annotations
+
 import base64
 import os
 import uuid
@@ -89,10 +91,38 @@ def tool_get_decisions(topic: Optional[str] = None, days: int = 365) -> list[dic
     return result if isinstance(result, list) else []
 
 
-def tool_get_tasks(status: str = "open") -> list[dict]:
-    """Get tasks/action items. Status: 'open', 'completed', or 'all'."""
-    result = _rpc("agent_get_tasks", {"task_status": status})
+def tool_get_tasks(status: str = "open", limit: int = 50) -> list[dict]:
+    """Get tasks. Status: 'open', 'suggested', 'snoozed', 'completed', 'archived', or 'all'."""
+    try:
+        result = _rpc("agent_get_tasks", {"task_status": status, "limit_count": min(limit, 200)})
+    except httpx.HTTPStatusError:
+        # pre-triage-migration signature (no limit_count)
+        result = _rpc("agent_get_tasks", {"task_status": status})
     return result if isinstance(result, list) else []
+
+
+def tool_archive_task(task_id: str) -> dict:
+    """Dismiss a task — archived (preserved), out of every active view."""
+    result = _rpc("agent_archive_task", {"target_task_id": task_id})
+    if isinstance(result, list) and result:
+        return result[0]
+    return {}
+
+
+def tool_promote_task(task_id: str) -> dict:
+    """Promote a 'suggested' task to 'open' (or resurrect an archived one)."""
+    result = _rpc("agent_promote_task", {"target_task_id": task_id})
+    if isinstance(result, list) and result:
+        return result[0]
+    return {}
+
+
+def tool_snooze_task(task_id: str, until: str) -> dict:
+    """Hide an open task until a date (YYYY-MM-DD). It stays open, just out of view."""
+    result = _rpc("agent_snooze_task", {"target_task_id": task_id, "until_date": until})
+    if isinstance(result, list) and result:
+        return result[0]
+    return {}
 
 
 def tool_get_insights(category: Optional[str] = None, days: int = 365) -> list[dict]:
