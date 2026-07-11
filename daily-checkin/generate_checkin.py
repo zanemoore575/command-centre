@@ -145,6 +145,26 @@ STATUS_NOTES = {
     "pending": ("warn", "awaiting poller pickup"),
 }
 
+# Coloured dot before each workstream heading, so multiple clients read apart at a glance.
+WORKSTREAM_SLUG = {
+    "Jake · Core Finance": "g-jake", "Greenmachine": "g-green",
+    "Moore AI Studios": "g-moore", "Command Centre": "g-cmd", "General": "g-general",
+}
+
+# Moore AI Studios emblem, inlined so the page stays a single self-contained document.
+EMBLEM = (
+    '<svg class="emblem" viewBox="0 0 454 452" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+    '<path d="M226.616 3.69434C349.741 3.69457 449.537 103.234 449.537 226C449.537 348.766 349.741 448.305 226.616 448.306C103.491 448.306 3.69434 348.766 3.69434 226C3.69434 103.234 103.491 3.69434 226.616 3.69434Z" fill="#F7F3EA" stroke="black" stroke-width="7.38965"/>'
+    '<path d="M160.725 319.602H189.052L264.796 201.984L325.76 319.602H351.624L280.191 177.967V170.578V136.708L208.142 245.706L99.7603 138.556V319.602H123.777V206.91V194.594L197.057 264.796L160.725 319.602Z" fill="black" stroke="black" stroke-width="1.23161"/>'
+    '<path d="M161.656 320.218H149.235L185.257 264.796L124.392 204.447V193.362L197.057 264.796L161.656 320.218Z" fill="#0057A4"/>'
+    '<path d="M197.673 320.218H189.668L264.796 201.984L325.76 320.218H315.907L263.564 217.995L197.673 320.218Z" fill="#F2C230"/>'
+    '<path d="M339.308 165.651V276.496L315.907 232.774V165.651H339.308Z" fill="black" stroke="black" stroke-width="1.23161"/>'
+    '<path d="M344.85 134.245C344.85 143.768 337.13 151.488 327.608 151.488C318.085 151.488 310.365 143.768 310.365 134.245C310.365 124.722 318.085 117.003 327.608 117.003C337.13 117.003 344.85 124.722 344.85 134.245Z" fill="#111111"/>'
+    '<rect x="192" y="265" width="148" height="8" fill="#0057A4"/>'
+    '<rect x="186" y="273" width="154" height="8" fill="#F2C230"/>'
+    '</svg>'
+)
+
 
 def esc(s):
     return html.escape(str(s or ""), quote=True)
@@ -167,10 +187,13 @@ def render(d):
         for name in sorted(groups, key=lambda n: order.index(n) if n in order else 99):
             rows = sorted(groups[name],
                           key=lambda t: (URGENCY_ORDER.get(t["urgency"], 9), t["created_at"]))
-            out.append(f'<h3 class="group">{esc(name)} <span class="count">{len(rows)}</span></h3>')
+            slug = WORKSTREAM_SLUG.get(name, "g-general")
+            out.append(f'<h3 class="group {slug}">{esc(name)} <span class="count">{len(rows)}</span></h3>')
             for t in rows:
                 u = t["urgency"] if t["urgency"] in URGENCY_LABEL else "soon"
-                due = f'<span class="due">due {esc(t["due_date"])}</span>' if t.get("due_date") else ""
+                dd = t.get("due_date")
+                overdue = " overdue" if dd and dd < today.isoformat() else ""
+                due = f'<span class="due{overdue}">due {esc(dd)}</span>' if dd else ""
                 out.append(
                     f'<div class="task"><span class="chip u-{u}">{URGENCY_LABEL[u]}</span>'
                     f'<div class="task-body"><p>{esc(t["task"])}</p>'
@@ -203,26 +226,30 @@ def render(d):
     body = f"""<title>Daily Check-in — Command Centre</title>
 <style>
 :root {{
-  --bg:#F6F8F7; --surface:#FFFFFF; --ink:#1C2422; --muted:#5F6E6B; --line:#E1E7E5;
-  --accent:#0E7569; --accent-ink:#0B5C52; --accent-soft:#E1EFEC;
+  --bg:#F7F1E8; --surface:#FFFFFF; --ink:#111827; --muted:#5B6775; --line:#E7DDCC;
+  --accent:#0F4E8A; --accent-ink:#0C3D6E; --accent-soft:#E3EAF4;
+  --gold:#F2C230; --gold-soft:#FBEFC9;
   --warn:#9A5B0B; --warn-soft:#F5ECDD; --crit:#B3382D; --crit-soft:#F7E7E4;
   --good:#1F7A44; --good-soft:#E4F1E8;
 }}
 @media (prefers-color-scheme: dark) {{ :root {{
-  --bg:#101615; --surface:#171F1D; --ink:#E6ECEA; --muted:#93A19E; --line:#273230;
-  --accent:#48B0A2; --accent-ink:#6BC4B8; --accent-soft:#1C3230;
+  --bg:#0E1621; --surface:#16202D; --ink:#E8ECF1; --muted:#93A2B4; --line:#27313F;
+  --accent:#4F97DA; --accent-ink:#88B9EC; --accent-soft:#182B3E;
+  --gold:#F2C230; --gold-soft:#33290F;
   --warn:#DFA35C; --warn-soft:#31281A; --crit:#E06B5F; --crit-soft:#36201D;
   --good:#5FB97D; --good-soft:#1C3024;
 }} }}
 :root[data-theme="dark"] {{
-  --bg:#101615; --surface:#171F1D; --ink:#E6ECEA; --muted:#93A19E; --line:#273230;
-  --accent:#48B0A2; --accent-ink:#6BC4B8; --accent-soft:#1C3230;
+  --bg:#0E1621; --surface:#16202D; --ink:#E8ECF1; --muted:#93A2B4; --line:#27313F;
+  --accent:#4F97DA; --accent-ink:#88B9EC; --accent-soft:#182B3E;
+  --gold:#F2C230; --gold-soft:#33290F;
   --warn:#DFA35C; --warn-soft:#31281A; --crit:#E06B5F; --crit-soft:#36201D;
   --good:#5FB97D; --good-soft:#1C3024;
 }}
 :root[data-theme="light"] {{
-  --bg:#F6F8F7; --surface:#FFFFFF; --ink:#1C2422; --muted:#5F6E6B; --line:#E1E7E5;
-  --accent:#0E7569; --accent-ink:#0B5C52; --accent-soft:#E1EFEC;
+  --bg:#F7F1E8; --surface:#FFFFFF; --ink:#111827; --muted:#5B6775; --line:#E7DDCC;
+  --accent:#0F4E8A; --accent-ink:#0C3D6E; --accent-soft:#E3EAF4;
+  --gold:#F2C230; --gold-soft:#FBEFC9;
   --warn:#9A5B0B; --warn-soft:#F5ECDD; --crit:#B3382D; --crit-soft:#F7E7E4;
   --good:#1F7A44; --good-soft:#E4F1E8;
 }}
@@ -233,8 +260,11 @@ body {{
   line-height:1.5; -webkit-font-smoothing:antialiased;
 }}
 .wrap {{ max-width:860px; margin:0 auto; padding:44px 24px 64px; }}
-.masthead {{ display:flex; justify-content:space-between; align-items:baseline; flex-wrap:wrap; gap:8px;
-  border-bottom:2px solid var(--ink); padding-bottom:16px; }}
+.masthead {{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;
+  border-bottom:3px solid var(--accent); padding-bottom:16px; position:relative; }}
+.masthead::after {{ content:""; position:absolute; left:0; right:0; bottom:-6px; height:3px; background:var(--gold); border-radius:2px; }}
+.brand {{ display:flex; align-items:center; gap:13px; }}
+.emblem {{ width:42px; height:42px; flex:none; }}
 .masthead h1 {{ font-size:26px; font-weight:600; letter-spacing:-0.01em; }}
 .masthead .date {{ font-size:15px; color:var(--muted); }}
 .kicker {{ font-size:12px; text-transform:uppercase; letter-spacing:0.1em; color:var(--accent-ink); font-weight:600; margin-bottom:4px; }}
@@ -247,12 +277,16 @@ body {{
 section {{ margin-top:36px; }}
 .eyebrow {{ font-size:12px; text-transform:uppercase; letter-spacing:0.1em; color:var(--muted); font-weight:600;
   border-bottom:1px solid var(--line); padding-bottom:6px; margin-bottom:14px; }}
-.group {{ font-size:14px; font-weight:600; margin:18px 0 6px; color:var(--accent-ink); }}
+.eyebrow.hot {{ border-bottom-color:var(--gold); color:var(--accent-ink); }}
+.group {{ font-size:14px; font-weight:600; margin:18px 0 6px; color:var(--accent-ink); display:flex; align-items:center; gap:7px; }}
+.group::before {{ content:""; width:8px; height:8px; border-radius:50%; background:var(--dot,var(--accent)); flex:none; }}
+.g-jake {{ --dot:var(--accent); }} .g-green {{ --dot:var(--good); }} .g-moore {{ --dot:var(--gold); }} .g-cmd {{ --dot:var(--muted); }} .g-general {{ --dot:var(--muted); }}
 .group .count {{ color:var(--muted); font-weight:500; font-size:12px; }}
 .task {{ display:flex; gap:12px; padding:9px 0; border-bottom:1px solid var(--line); align-items:flex-start; }}
 .task:last-child {{ border-bottom:none; }}
 .task p {{ font-size:15px; }}
 .task .meta, .due {{ font-size:12px; color:var(--muted); font-family:ui-monospace,Menlo,monospace; }}
+.due.overdue {{ color:var(--crit); font-weight:600; }}
 .chip {{ flex:none; font-size:11px; font-weight:600; padding:2px 9px; border-radius:99px; margin-top:2px;
   letter-spacing:0.02em; white-space:nowrap; }}
 .u-immediate {{ background:var(--accent); color:var(--bg); }}
@@ -285,9 +319,12 @@ footer p {{ margin-bottom:4px; }}
 </style>
 <div class="wrap">
   <header class="masthead">
-    <div>
-      <div class="kicker">Command Centre · Moore AI Studios</div>
-      <h1>Daily Check-in</h1>
+    <div class="brand">
+      {EMBLEM}
+      <div>
+        <div class="kicker">Command Centre · Moore AI Studios</div>
+        <h1>Daily Check-in</h1>
+      </div>
     </div>
     <span class="date">{nice_date}</span>
   </header>
@@ -304,7 +341,7 @@ footer p {{ margin-bottom:4px; }}
   </div>
 
   <section>
-    <div class="eyebrow">Today’s focus</div>
+    <div class="eyebrow hot">Today’s focus</div>
     {task_rows(urgent) or '<p class="callout">Nothing marked immediate or this-week. Pull something up from the later list.</p>'}
   </section>
 
