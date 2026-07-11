@@ -43,6 +43,16 @@ def _rpc(fn: str, body: dict = None) -> list:
         return r.json()
 
 
+def _patch(path: str, body: dict, params: dict = None) -> list:
+    """PATCH rows via the Supabase REST API; returns the updated rows."""
+    url = f"{_SUPABASE_URL}/rest/v1/{path}"
+    with httpx.Client(timeout=10) as client:
+        r = client.patch(url, headers={**_headers(), "Prefer": "return=representation"},
+                          params=params or {}, json=body)
+        r.raise_for_status()
+        return r.json()
+
+
 # ---------------------------------------------------------------------------
 # Tool implementations
 # ---------------------------------------------------------------------------

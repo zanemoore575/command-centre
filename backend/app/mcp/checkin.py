@@ -22,7 +22,7 @@ import httpx
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, Response
 
-from app.mcp.supabase_tools import _rest, _rpc
+from app.mcp.supabase_tools import _patch, _rest, _rpc
 
 _TZ = ZoneInfo(os.environ.get("CHECKIN_TZ", "Pacific/Auckland"))
 _TOKEN = os.environ.get("CHECKIN_TOKEN", "")
@@ -155,6 +155,16 @@ def _fetch():
 # Rendering
 # ---------------------------------------------------------------------------
 
+def _task_body(raw) -> str:
+    """Task text as a card body: short tasks in full, long ones clamped to two
+    lines behind a native <details> 'Show more' toggle (no JS needed)."""
+    text = esc(raw)
+    if len(raw or "") <= 110:
+        return f'<div class="task-body"><p class="task-text">{text}</p></div>'
+    return (f'<div class="task-body"><details class="task-x"><summary>'
+            f'<span class="task-text">{text}</span></summary></details></div>')
+
+
 def _task_row(t, today, kind="open") -> str:
     tid = esc(t["task_id"])
     u = t.get("urgency") if t.get("urgency") in URGENCY_LABEL else "soon"
@@ -173,9 +183,9 @@ def _task_row(t, today, kind="open") -> str:
         lead = (f'<button class="tick" data-action="complete" data-id="{tid}" '
                 f'title="Mark done" aria-label="Mark done"></button>'
                 f'<span class="chip u-{u}">{URGENCY_LABEL[u]}</span>')
-    return (f'<div class="task" id="task-{tid}">{lead}'
-            f'<div class="task-body"><p>{esc(t["task_text"])}</p>'
-            f'<span class="meta">{meta}</span></div>'
+    return (f'<div class="task" id="task-{tid}">'
+            f'<div class="task-top">{lead}<span class="meta">{meta}</span></div>'
+            f'{_task_body(t["task_text"])}'
             f'<div class="acts">{buttons}</div></div>')
 
 
@@ -280,16 +290,23 @@ section {{ margin-top:32px; }}
 .group::before {{ content:""; width:8px; height:8px; border-radius:50%; background:var(--dot,var(--accent)); flex:none; }}
 .g-jake {{ --dot:var(--accent); }} .g-green {{ --dot:var(--good); }} .g-moore {{ --dot:var(--gold); }} .g-cmd {{ --dot:var(--muted); }} .g-general {{ --dot:var(--muted); }}
 .group .count {{ color:var(--muted); font-weight:500; font-size:12px; }}
-.task {{ display:flex; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); align-items:flex-start; }}
+.task {{ padding:13px 15px; border:1px solid var(--line); border-radius:12px; background:var(--surface); margin-bottom:10px; }}
 .task.gone {{ opacity:0; transform:translateX(12px); transition:opacity .3s, transform .3s; }}
-.task p {{ font-size:14.5px; }}
+.task-top {{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px; }}
+.task-body {{ min-width:0; }}
+.task-text {{ font-size:14.5px; overflow-wrap:anywhere; }}
+details.task-x > summary {{ list-style:none; cursor:pointer; }}
+details.task-x > summary::-webkit-details-marker {{ display:none; }}
+details.task-x .task-text {{ display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden; }}
+details.task-x[open] .task-text {{ display:block; -webkit-line-clamp:unset; line-clamp:unset; overflow:visible; }}
+details.task-x > summary::after {{ content:"Show more"; display:inline-block; margin-top:7px; font-size:12px; font-weight:600; color:var(--accent); }}
+details.task-x[open] > summary::after {{ content:"Show less"; }}
 .task .meta, .due, .done-row .meta {{ font-size:11.5px; color:var(--muted); font-family:ui-monospace,Menlo,monospace; }}
 .due.overdue {{ color:var(--crit); font-weight:600; }}
-.task-body {{ flex:1; min-width:0; }}
-.tick {{ flex:none; width:24px; height:24px; margin-top:2px; border-radius:50%;
+.tick {{ flex:none; width:24px; height:24px; border-radius:50%;
   border:2px solid var(--accent); background:transparent; cursor:pointer; }}
 .tick:hover, .tick:focus-visible {{ background:var(--accent-soft); outline:2px solid var(--accent); outline-offset:2px; }}
-.chip {{ flex:none; font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:99px; margin-top:3px;
+.chip {{ flex:none; font-size:10.5px; font-weight:600; padding:2px 8px; border-radius:99px;
   letter-spacing:0.02em; white-space:nowrap; }}
 .u-immediate {{ background:var(--accent); color:var(--bg); }}
 .u-this_week {{ background:var(--accent-soft); color:var(--accent-ink); }}
@@ -297,7 +314,7 @@ section {{ margin-top:32px; }}
 .u-someday {{ color:var(--muted); border:1px dashed var(--line); }}
 .inbox-chip {{ background:var(--warn-soft); color:var(--warn); }}
 .chip.src {{ background:var(--surface); border:1px solid var(--line); color:var(--muted); font-weight:500; }}
-.acts {{ display:flex; gap:6px; flex:none; }}
+.acts {{ display:flex; gap:6px; justify-content:flex-end; margin-top:10px; }}
 .act {{ font:inherit; font-size:12px; font-weight:600; padding:6px 11px; min-height:34px; border-radius:7px;
   border:1px solid var(--line); background:var(--surface); color:var(--muted); cursor:pointer; }}
 .act:hover, .act:focus-visible {{ border-color:var(--accent); color:var(--accent-ink); outline:none; }}
@@ -327,8 +344,11 @@ footer {{ margin-top:40px; padding-top:12px; border-top:1px solid var(--line);
   font-size:11.5px; color:var(--muted); font-family:ui-monospace,Menlo,monospace; }}
 footer p {{ margin-bottom:4px; }}
 #toast {{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:var(--bg);
-  padding:9px 18px; border-radius:9px; font-size:13.5px; opacity:0; pointer-events:none; transition:opacity .25s; }}
-#toast.show {{ opacity:1; }}
+  padding:9px 18px; border-radius:9px; font-size:13.5px; opacity:0; pointer-events:none; transition:opacity .25s;
+  display:flex; align-items:center; gap:14px; max-width:calc(100% - 32px); }}
+#toast.show {{ opacity:1; pointer-events:auto; }}
+#toast button {{ font:inherit; font-size:12.5px; font-weight:700; color:var(--gold); background:transparent;
+  border:0; padding:2px 4px; cursor:pointer; white-space:nowrap; }}
 @media (prefers-reduced-motion: reduce) {{ .task.gone, #toast {{ transition:none; }} }}
 </style>
 </head>
@@ -396,10 +416,24 @@ footer p {{ margin-bottom:4px; }}
 (function () {{
   var token = new URLSearchParams(location.search).get("token") || "";
   var toastEl = document.getElementById("toast"), toastTimer;
-  function toast(msg) {{
-    toastEl.textContent = msg; toastEl.classList.add("show");
-    clearTimeout(toastTimer); toastTimer = setTimeout(function () {{ toastEl.classList.remove("show"); }}, 2600);
+  function showToast(msg, label, cb) {{
+    toastEl.innerHTML = "";
+    var span = document.createElement("span");
+    span.textContent = msg;
+    toastEl.appendChild(span);
+    if (label && cb) {{
+      var b = document.createElement("button");
+      b.textContent = label;
+      b.addEventListener("click", function () {{
+        toastEl.classList.remove("show"); clearTimeout(toastTimer); cb();
+      }});
+      toastEl.appendChild(b);
+    }}
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {{ toastEl.classList.remove("show"); }}, label ? 6000 : 2600);
   }}
+  function toast(msg) {{ showToast(msg, null, null); }}
   function bump(id, delta) {{
     var el = document.getElementById(id);
     if (el) el.textContent = Math.max(0, parseInt(el.textContent || "0", 10) + delta);
@@ -426,15 +460,32 @@ footer p {{ margin-bottom:4px; }}
         row.classList.add("gone");
         setTimeout(function () {{ row.remove(); }}, 320);
         if (action === "complete") {{
+          var parent = row.parentNode, next = row.nextSibling;
           bump("stat-done", 1); bump("stat-focus", -1); bump("focus-n", -1);
           var done = document.getElementById("done-list");
           var empty = document.getElementById("done-empty");
           if (empty) empty.remove();
-          var p = row.querySelector(".task-body p").textContent;
+          var txt = row.querySelector(".task-text").textContent;
           done.insertAdjacentHTML("afterbegin",
             '<div class="done-row"><span class="done-tick">✓</span><p></p><span class="meta">just now</span></div>');
-          done.firstChild.querySelector("p").textContent = p;
-          toast("Done ✓ — filed and timestamped");
+          var doneRow = done.firstElementChild;
+          doneRow.querySelector("p").textContent = txt;
+          showToast("Done ✓ — filed and timestamped", "Undo", function () {{
+            fetch("checkin/action", {{
+              method: "POST", headers: {{ "Content-Type": "application/json" }},
+              body: JSON.stringify({{ token: token, task_id: btn.dataset.id, action: "reopen" }})
+            }}).then(function (r) {{ return r.json().then(function (j) {{ return {{ ok: r.ok, j: j }}; }}); }})
+              .then(function (res) {{
+                if (!res.ok) throw new Error(res.j.error || "failed");
+                if (doneRow) doneRow.remove();
+                bump("stat-done", -1); bump("stat-focus", 1); bump("focus-n", 1);
+                row.classList.remove("gone");
+                row.querySelectorAll("button").forEach(function (b) {{ b.disabled = false; }});
+                parent.insertBefore(row, (next && next.parentNode === parent) ? next : null);
+                toast("Restored — back on your focus list");
+              }})
+              .catch(function (err) {{ toast("Couldn’t undo: " + err.message); }});
+          }});
         }} else if (action === "promote") {{
           bump("stat-inbox", -1); bump("inbox-n", -1);
           toast("Kept — now on the open list (refresh to see it placed)");
@@ -481,6 +532,21 @@ async def checkin_action(request: Request) -> Response:
 
     action = body.get("action")
     task_id = body.get("task_id", "")
+
+    # Undo a completion: send the task straight back to 'open'. Done via REST
+    # PATCH (no reopen RPC exists) — task_id is the tasks.id UUID.
+    if action == "reopen":
+        if not re.fullmatch(r"[0-9a-fA-F-]{36}", task_id):
+            return JSONResponse({"error": "bad task_id"}, status_code=400)
+        try:
+            result = _patch("tasks", {"status": "open", "completed": False, "completed_at": None},
+                            params={"id": f"eq.{task_id}"})
+        except httpx.HTTPStatusError as e:
+            return JSONResponse({"error": f"database error ({e.response.status_code})"}, status_code=502)
+        if not result:
+            return JSONResponse({"error": "task not found"}, status_code=404)
+        return JSONResponse({"ok": True, "task": result[0]})
+
     if action not in ACTIONS:
         return JSONResponse({"error": f"unknown action '{action}'"}, status_code=400)
     if action == "snooze" and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", body.get("until") or ""):

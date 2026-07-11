@@ -170,6 +170,16 @@ def esc(s):
     return html.escape(str(s or ""), quote=True)
 
 
+def task_body_html(raw):
+    """Task text as a card body: short in full, long clamped to two lines behind
+    a native <details> 'Show more' toggle (no JS needed)."""
+    text = esc(raw)
+    if len(raw or "") <= 110:
+        return f'<div class="task-body"><p class="task-text">{text}</p></div>'
+    return (f'<div class="task-body"><details class="task-x"><summary>'
+            f'<span class="task-text">{text}</span></summary></details></div>')
+
+
 def render(d):
     today = d["today"]
     nice_date = today.strftime("%A %-d %B %Y")
@@ -195,10 +205,10 @@ def render(d):
                 overdue = " overdue" if dd and dd < today.isoformat() else ""
                 due = f'<span class="due{overdue}">due {esc(dd)}</span>' if dd else ""
                 out.append(
-                    f'<div class="task"><span class="chip u-{u}">{URGENCY_LABEL[u]}</span>'
-                    f'<div class="task-body"><p>{esc(t["task"])}</p>'
-                    f'<span class="meta">{esc(t.get("category") or "")} · {days_ago(t["created_at"], today)} {due}</span>'
-                    f'</div></div>')
+                    f'<div class="task">'
+                    f'<div class="task-top"><span class="chip u-{u}">{URGENCY_LABEL[u]}</span>'
+                    f'<span class="meta">{esc(t.get("category") or "")} · {days_ago(t["created_at"], today)} {due}</span></div>'
+                    f'{task_body_html(t["task"])}</div>')
         return "\n".join(out)
 
     mem_rows = []
@@ -282,12 +292,19 @@ section {{ margin-top:36px; }}
 .group::before {{ content:""; width:8px; height:8px; border-radius:50%; background:var(--dot,var(--accent)); flex:none; }}
 .g-jake {{ --dot:var(--accent); }} .g-green {{ --dot:var(--good); }} .g-moore {{ --dot:var(--gold); }} .g-cmd {{ --dot:var(--muted); }} .g-general {{ --dot:var(--muted); }}
 .group .count {{ color:var(--muted); font-weight:500; font-size:12px; }}
-.task {{ display:flex; gap:12px; padding:9px 0; border-bottom:1px solid var(--line); align-items:flex-start; }}
-.task:last-child {{ border-bottom:none; }}
-.task p {{ font-size:15px; }}
+.task {{ padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--surface); margin-bottom:10px; }}
+.task-top {{ display:flex; align-items:center; gap:9px; flex-wrap:wrap; margin-bottom:8px; }}
+.task-body {{ min-width:0; }}
+.task-text {{ font-size:15px; overflow-wrap:anywhere; }}
+details.task-x > summary {{ list-style:none; cursor:pointer; }}
+details.task-x > summary::-webkit-details-marker {{ display:none; }}
+details.task-x .task-text {{ display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; line-clamp:2; overflow:hidden; }}
+details.task-x[open] .task-text {{ display:block; -webkit-line-clamp:unset; line-clamp:unset; overflow:visible; }}
+details.task-x > summary::after {{ content:"Show more"; display:inline-block; margin-top:7px; font-size:12px; font-weight:600; color:var(--accent); }}
+details.task-x[open] > summary::after {{ content:"Show less"; }}
 .task .meta, .due {{ font-size:12px; color:var(--muted); font-family:ui-monospace,Menlo,monospace; }}
 .due.overdue {{ color:var(--crit); font-weight:600; }}
-.chip {{ flex:none; font-size:11px; font-weight:600; padding:2px 9px; border-radius:99px; margin-top:2px;
+.chip {{ flex:none; font-size:11px; font-weight:600; padding:2px 9px; border-radius:99px;
   letter-spacing:0.02em; white-space:nowrap; }}
 .u-immediate {{ background:var(--accent); color:var(--bg); }}
 .u-this_week {{ background:var(--accent-soft); color:var(--accent-ink); }}
