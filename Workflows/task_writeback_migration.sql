@@ -1,5 +1,5 @@
 -- =============================================================================
--- CAiS Command Centre — Task Write-Back Migration
+-- Command Centre — Task Write-Back Migration
 -- =============================================================================
 -- Paste this entire file into the Supabase SQL Editor and click Run.
 -- Adds: due_date, priority, entity_name columns on tasks; pg_trgm for dedup;

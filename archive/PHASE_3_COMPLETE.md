@@ -1,6 +1,6 @@
 # Phase 3: AI Entity Extraction - COMPLETE! 🤖
 
-Congratulations! Your CAiS Command Center now has AI-powered entity extraction!
+Congratulations! Your Command Centre now has AI-powered entity extraction!
 
 ## What's Been Built
 
@@ -214,7 +214,7 @@ You now have:
 - ✅ Pain point recognition
 - ✅ Beautiful visualization
 
-Your CAiS Command Center is becoming truly intelligent!
+Your Command Centre is becoming truly intelligent!
 
 ---
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Starting CAiS Command Center Frontend..."
+echo "Starting Command Centre Frontend..."
 echo ""
 
 # Start Next.js development server

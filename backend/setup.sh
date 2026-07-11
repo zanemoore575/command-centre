@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "CAiS Command Center - Backend Setup"
+echo "Command Centre - Backend Setup"
 echo "===================================="
 echo ""
 

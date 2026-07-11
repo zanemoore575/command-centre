@@ -1,6 +1,6 @@
-# CAiS Command Center - Backend
+# Command Centre - Backend
 
-FastAPI backend for the CAiS Command Center personal AI system.
+FastAPI backend for the Command Centre personal AI system.
 
 ## Setup
 

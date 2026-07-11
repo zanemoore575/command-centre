@@ -1,6 +1,6 @@
-# CAiS Command Center - Frontend
+# Command Centre - Frontend
 
-Next.js frontend for the CAiS Command Center personal AI system.
+Next.js frontend for the Command Centre personal AI system.
 
 ## Setup
 

@@ -1,5 +1,5 @@
 -- =============================================================================
--- CAiS Command Centre — Artifact Storage Migration
+-- Command Centre — Artifact Storage Migration
 -- =============================================================================
 -- Paste this entire file into the Supabase SQL Editor and click Run.
 -- Storage bucket 'artifacts' is created separately via the Storage REST API

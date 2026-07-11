@@ -1,5 +1,5 @@
 """
-CAiS Command Centre — MCP Server with Google OAuth
+Command Centre — MCP Server with Google OAuth
 
 Tools query Supabase directly (memories/entities schema written by n8n).
 Auth: Google OAuth proxy (RFC 9728 AS + RS combined)
@@ -108,7 +108,7 @@ _transport_security = TransportSecuritySettings(
 )
 
 mcp = FastMCP(
-    "CAiS Command Centre",
+    "Command Centre",
     stateless_http=True,
     json_response=True,
     host=_MCP_HOST,

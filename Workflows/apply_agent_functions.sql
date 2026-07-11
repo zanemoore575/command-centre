@@ -1,5 +1,5 @@
 -- =============================================================================
--- CAiS Command Centre — Agent RPC Functions
+-- Command Centre — Agent RPC Functions
 -- =============================================================================
 -- Paste this entire file into the Supabase SQL Editor and click Run.
 -- Fixes all type mismatches vs the live schema (UUID ids, JSONB columns).

@@ -91,7 +91,7 @@ Open your web browser and go to:
 
 **http://localhost:3000**
 
-You should see the CAiS Command Center homepage!
+You should see the Command Centre homepage!
 
 ---
 
@@ -192,7 +192,7 @@ If you get stuck at any step:
            ↓
 ┌─────────────────────────────────────┐
 │  Browser: http://localhost:3000     │
-│  Your App: CAiS Command Center      │
+│  Your App: Command Centre      │
 └─────────────────────────────────────┘
 ```
 

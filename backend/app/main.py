@@ -8,7 +8,7 @@ settings = get_settings()
 
 # Create FastAPI app
 app = FastAPI(
-    title="CAiS Command Center API",
+    title="Command Centre API",
     description="Personal AI system for tracking the CAiS business journey",
     version="0.1.0"
 )
@@ -35,7 +35,7 @@ app.include_router(chat_agentic.router)  # New agentic chat with file upload sup
 def root():
     """Root endpoint"""
     return {
-        "message": "CAiS Command Center API",
+        "message": "Command Centre API",
         "version": "0.1.0",
         "docs": "/docs"
     }

@@ -55,7 +55,7 @@ Go to: **http://localhost:3000**
 
 ## That's It!
 
-You should now see your CAiS Command Center running! 🎉
+You should now see your Command Centre running! 🎉
 
 The database is stored as a file: `backend/cais_command_center.db`
 

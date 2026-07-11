@@ -1,5 +1,5 @@
 -- =============================================================================
--- AGENTIC MEMORY TOOLS FOR CAIS COMMAND CENTRE
+-- AGENTIC MEMORY TOOLS FOR COMMAND CENTRE
 -- =============================================================================
 -- These RPC functions are designed to be called by an AI Agent via n8n.
 -- Each function returns structured data the agent can use to gather context.

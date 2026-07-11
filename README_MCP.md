@@ -1,4 +1,4 @@
-# CAiS Command Centre — MCP Server
+# Command Centre — MCP Server
 
 Remote MCP server exposing CAiS data to Claude (web, mobile, Projects, Desktop, Code).
 

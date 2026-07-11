@@ -1,5 +1,5 @@
 -- =============================================================================
--- CAiS COMMAND CENTRE - FRESH SUPABASE SETUP
+-- COMMAND CENTRE - FRESH SUPABASE SETUP
 -- =============================================================================
 -- Run this entire file in the Supabase SQL Editor (one paste, one run).
 -- PREREQUISITE: Enable the pgvector extension first:

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "================================================"
-echo "   CAiS Command Center - Startup Script"
+echo "   Command Centre - Startup Script"
 echo "================================================"
 echo ""
 

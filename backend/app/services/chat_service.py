@@ -139,7 +139,7 @@ class ChatService:
             })
 
         # Add system context and current query
-        system_prompt = f"""You are CAiS Command Center, Zane's personal AI assistant with access to his complete business journey.
+        system_prompt = f"""You are Command Centre, Zane's personal AI assistant with access to his complete business journey.
 
 You have access to structured data from Zane's journal:
 

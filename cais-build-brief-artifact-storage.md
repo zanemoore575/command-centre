@@ -1,4 +1,4 @@
-# CAiS Command Centre — Build Brief (DRAFT, not yet built)
+# Command Centre — Build Brief (DRAFT, not yet built)
 ## Artifact storage: let Claude.ai save, find, and overwrite real files
 
 *For: Claude.ai review/refinement before handing back to Claude Code to build.*

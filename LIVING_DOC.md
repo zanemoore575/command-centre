@@ -1,4 +1,4 @@
-# CAiS Command Centre — Living Project Status
+# Command Centre — Living Project Status
 
 Updated: 2026-06-17 (task write-back + artifact storage)
 

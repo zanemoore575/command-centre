@@ -1,4 +1,4 @@
-# CAiS Command Centre
+# Command Centre
 
 Personal AI system for capturing business context, extracting insights, and tracking progress with Claude-style phase-separated AI UX.
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "CAiS Command Center - Cleanup Script"
+echo "Command Centre - Cleanup Script"
 echo "====================================="
 echo ""
 

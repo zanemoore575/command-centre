@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "Starting CAiS Command Center Backend..."
+echo "Starting Command Centre Backend..."
 echo ""
 
 # Activate virtual environment

@@ -1,4 +1,4 @@
-# CAiS Command Center - Complete Setup Tutorial
+# Command Centre - Complete Setup Tutorial
 
 ## What We're Going to Do
 
@@ -206,7 +206,7 @@ Open your web browser and go to:
 
 **http://localhost:3000**
 
-You should see the CAiS Command Center homepage! 🎉
+You should see the Command Centre homepage! 🎉
 
 ---
 

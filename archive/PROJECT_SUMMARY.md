@@ -1,4 +1,4 @@
-# CAiS Command Centre — Project Summary
+# Command Centre — Project Summary
 
 > A personal AI-powered business intelligence system that knows your entire journey, never forgets context, and becomes smarter the more you use it.
 
@@ -8,7 +8,7 @@
 
 Every time you open a conversation with an AI assistant, you start from zero. You re-explain context, re-introduce people, re-state your goals. Important details from customer calls get forgotten. Commitments you made get lost. Patterns across dozens of conversations are invisible because they live scattered across voice memos, notebooks, and your own memory.
 
-CAiS Command Centre exists to fix exactly this.
+Command Centre exists to fix exactly this.
 
 The name "CAiS" refers to Zane's startup journey — this system is the intelligence layer for that journey. The core insight driving the build is:
 
@@ -18,7 +18,7 @@ The name "CAiS" refers to Zane's startup journey — this system is the intellig
 
 ## 2. What the System Does
 
-CAiS Command Centre is a **personal AI business intelligence system** with three core capabilities:
+Command Centre is a **personal AI business intelligence system** with three core capabilities:
 
 ### 2.1 Capture Everything
 You log thoughts, meetings, calls, realizations, and tasks in natural language — either by typing directly into the web app, or by speaking into your iPhone via a Shortcuts automation. The system accepts free-form "brain dumps" with no structure required.
@@ -307,7 +307,7 @@ Seven principles guide every decision in this system:
 
 ## 14. The Dual Purpose
 
-CAiS Command Centre serves two roles simultaneously:
+Command Centre serves two roles simultaneously:
 
 1. **Personal tool** — Zane's own intelligence layer for the CAiS startup journey, tracking every conversation, commitment, insight, and win.
 

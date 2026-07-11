@@ -26,7 +26,7 @@ export default function Home() {
       <div className="max-w-4xl mx-auto">
         <header className="text-center mb-12">
           <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            CAiS Command Center
+            Command Centre
           </h1>
           <p className="text-xl text-gray-600">
             Your Personal AI Business Intelligence System

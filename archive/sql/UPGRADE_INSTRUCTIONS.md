@@ -145,7 +145,7 @@ The agent should:
   "entities": {
     "people": ["William", "Rachel", "Justin", "Aaron", ...],
     "companies": ["Anthropic", "Shopify", ...],
-    "projects": ["CAiS Command Centre", "Rach-bot", ...],
+    "projects": ["Command Centre", "Rach-bot", ...],
     "tools": ["n8n", "Supabase", "OpenAI", ...]
   },
   "decisions": {

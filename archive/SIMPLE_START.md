@@ -24,7 +24,7 @@ cd "/Users/apple/Desktop/Claude_code/CAiS Command Centre/backend"
 
 **What you should see:**
 ```
-Starting CAiS Command Center Backend...
+Starting Command Centre Backend...
 
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 INFO:     Started reloader process
@@ -48,7 +48,7 @@ cd "/Users/apple/Desktop/Claude_code/CAiS Command Centre/frontend"
 
 **What you should see:**
 ```
-Starting CAiS Command Center Frontend...
+Starting Command Centre Frontend...
 
 ▲ Next.js 15.x.x
 - Local:        http://localhost:3000

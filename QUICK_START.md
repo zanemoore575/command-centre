@@ -1,4 +1,4 @@
-# CAiS Command Center - Quick Start Guide
+# Command Centre - Quick Start Guide
 
 ## Prerequisites
 
@@ -110,7 +110,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 ## Project Structure
 
 ```
-CAiS Command Centre/
+Command Centre/
 ├── backend/          # FastAPI Python backend
 │   ├── app/          # Application code
 │   ├── alembic/      # Database migrations
