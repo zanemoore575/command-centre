@@ -113,10 +113,47 @@
       ],
       "id": "e3f4a5b6-c7d8-4901-2345-6789abcdef01",
       "name": "Trigger Ingest For Pending Memory"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erwxszdcisyuyjmefvbj.supabase.co/rest/v1/rpc/agent_reclaim_stale_memories",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -40,
+        -560
+      ],
+      "id": "b7c8d9e0-1234-4567-89ab-cdef01234567",
+      "name": "Reclaim Stale Memories",
+      "credentials": {
+        "supabaseApi": {
+          "id": "WLH1xOtq0dhre1iC",
+          "name": "Zane.moore575 Supabase"
+        }
+      }
     }
   ],
   "connections": {
     "Every 2 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Reclaim Stale Memories",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reclaim Stale Memories": {
       "main": [
         [
           {
