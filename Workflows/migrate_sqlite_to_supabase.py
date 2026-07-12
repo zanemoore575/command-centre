@@ -32,10 +32,10 @@ from datetime import datetime
 
 SQLITE_PATH = os.path.join(os.path.dirname(__file__), "../backend/cais_command_center.db")
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://erwxszdcisyuyjmefvbj.supabase.co")
-SUPABASE_KEY = os.environ.get(
-    "SUPABASE_SERVICE_KEY",
-    "***REMOVED-SUPABASE-SERVICE-KEY***"
-)
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+
+if not SUPABASE_KEY:
+    sys.exit("Set SUPABASE_SERVICE_KEY first (Supabase dashboard → Settings → API).")
 
 HEADERS = {
     "apikey": SUPABASE_KEY,

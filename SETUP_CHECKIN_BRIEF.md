@@ -22,12 +22,13 @@ Verify: `select status, count(*) from tasks group by 1;` → open should be ~43.
 ## 2. Render (MCP server) — env + deploy (10 min)
 
 1. Render dashboard → `cais-mcp-server` → Environment → add:
-   - `CHECKIN_TOKEN` = `***REMOVED-CHECKIN-TOKEN***` (same value as local
-     `backend/.env`; rotate any time — it's the password for the check-in page)
+   - `CHECKIN_TOKEN` = a long random secret, e.g. generate one with
+     `openssl rand -base64 24` (keep the value in Render's env + your local
+     `backend/.env` only — never commit it; rotate any time by changing this var)
 2. Commit + push the repo changes (server code is in `backend/app/mcp/`) — Render
    auto-deploys from GitHub. Changed files: `server.py`, `supabase_tools.py`,
    new `checkin.py`.
-3. Test: open `https://cais-mcp-server.onrender.com/checkin?token=***REMOVED-CHECKIN-TOKEN***`
+3. Test: open `https://cais-mcp-server.onrender.com/checkin?token=<your CHECKIN_TOKEN>`
    — you should see the live Daily Check-in with checkboxes. Tick a task; it
    completes in Supabase instantly (Claude sees it too).
 
