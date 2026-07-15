@@ -203,7 +203,7 @@ def _decision_row(dec, today) -> str:
     return (f'<div class="decision" id="decision-{did}">'
             f'<div class="decision-top"><span class="meta">{meta}</span></div>'
             f'<div class="decision-body"><p class="decision-text">{esc(dec["decision_text"])}</p>{reasoning}</div>'
-            f'<textarea class="outcome-input" placeholder="What actually happened? (optional)" rows="2"></textarea>'
+            f'<textarea class="outcome-input" placeholder="What actually happened? (optional — sent when you tap a button below, no separate save)" rows="2"></textarea>'
             f'<div class="acts">'
             f'<button class="act worked" data-action="review_decision" data-status="worked" data-id="{did}">Worked</button>'
             f'<button class="act mixed" data-action="review_decision" data-status="mixed" data-id="{did}">Mixed</button>'
@@ -419,14 +419,14 @@ footer p {{ margin-bottom:4px; }}
       <div class="sub">memories not fully processed</div></div>
   </div>
 
-  {decision_review_html}
-
   {suggested_html}
 
   <section>
     <div class="eyebrow hot">Today’s focus · <span id="focus-n">{len(focus)}</span></div>
     <div id="focus-list">{_grouped(focus, today) or '<p class="callout">Nothing urgent on the board. Pull something up from the later list, or enjoy it.</p>'}</div>
   </section>
+
+  {decision_review_html}
 
   <section>
     <div class="eyebrow">Coming up · {len(later)}</div>
