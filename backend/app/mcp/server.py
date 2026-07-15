@@ -81,6 +81,10 @@ from app.mcp.supabase_tools import (
     tool_get_insights,
     tool_get_customer_insights,
     tool_get_reflections,
+    tool_get_current_state,
+    tool_update_current_state,
+    tool_record_decision_outcome,
+    tool_get_decisions_due_for_review,
     tool_discover_database,
     tool_log_memory,
     tool_complete_task,
@@ -193,13 +197,63 @@ def discover_database() -> list[dict]:
 
 
 @mcp.tool()
+def get_current_state(topic: Optional[str] = None) -> list[dict]:
+    """
+    Get the current-truth layer — one canonical, up-to-date answer per topic
+    (workstream status, client position, pricing stance, personal thread).
+    Superseded facts are preserved in each row's history, not left sitting
+    beside their correction with equal weight.
+
+    Query this FIRST at the start of a session, before search_memories or
+    get_recent_memories — it's the fastest way to know where things actually
+    stand right now instead of reconstructing it from raw transcripts.
+
+    Args:
+        topic: Optional keyword to filter (e.g. 'Phase 2', 'Jake'). Omit to
+            get every tracked topic, active ones first.
+    """
+    return tool_get_current_state(topic=topic)
+
+
+@mcp.tool()
+def update_current_state(
+    topic: str,
+    statement: str,
+    detail: Optional[str] = None,
+    status: str = "active",
+    source_memory_id: Optional[int] = None,
+) -> dict:
+    """
+    Set or correct the canonical answer for a topic. Call this the moment Zane
+    says something that changes the current truth ("actually, that changed",
+    a correction, a status update) — the new statement overwrites the old one
+    and the prior value is preserved in history, not left standing beside it.
+
+    Args:
+        topic: Short canonical name for the topic (e.g. 'Phase 2 commercial
+            position'). Case-insensitive — matches an existing topic if one
+            is close enough, otherwise creates a new one.
+        statement: The one current, canonical answer for this topic.
+        detail: Optional supporting context/nuance.
+        status: 'active' (default, still live), 'watch' (dormant but relevant),
+            or 'closed' (resolved/no longer tracked).
+        source_memory_id: The memory ID this update came from, if known.
+    """
+    return tool_update_current_state(
+        topic=topic, statement=statement, detail=detail,
+        status=status, source_memory_id=source_memory_id,
+    )
+
+
+@mcp.tool()
 def get_recent_memories(limit: int = 10, source: Optional[str] = None) -> list[dict]:
     """
     Get the most recent completed memories (voice notes, conversations, imports).
 
     Args:
         limit: Number of memories to return (default 10, max 30).
-        source: Optional filter — e.g. 'telegram_conversation', 'claude_conversation'.
+        source: Optional filter — e.g. 'claude_conversation', 'shortcut_voice',
+            'claude_task_creation', 'artifact'.
     """
     return tool_get_recent_memories(limit=limit, source=source)
 
@@ -251,6 +305,36 @@ def get_decisions(topic: Optional[str] = None, days: int = 365) -> list[dict]:
         days: How far back to look (default 365).
     """
     return tool_get_decisions(topic=topic, days=days)
+
+
+@mcp.tool()
+def record_decision_outcome(decision_id: str, status: str, outcome_text: Optional[str] = None) -> dict:
+    """
+    Close the loop on a past decision — record what actually happened. This is
+    the one thing the system can learn that nothing else captures: which calls
+    were right.
+
+    Args:
+        decision_id: The decision's UUID, from get_decisions or
+            get_decisions_due_for_review.
+        status: 'worked', 'didnt_work', 'mixed', or 'obsolete' (circumstances
+            changed before it could play out).
+        outcome_text: What actually happened, in Zane's words.
+    """
+    return tool_record_decision_outcome(decision_id=decision_id, status=status, outcome_text=outcome_text)
+
+
+@mcp.tool()
+def get_decisions_due_for_review(limit: int = 2) -> list[dict]:
+    """
+    Get past decisions old enough (or explicitly scheduled) to check in on —
+    still pending an outcome, confident/high-stakes ones first. Use this to
+    proactively ask Zane "what happened with X?" instead of waiting to be asked.
+
+    Args:
+        limit: Max decisions to surface (default 2, max 10).
+    """
+    return tool_get_decisions_due_for_review(limit=limit)
 
 
 @mcp.tool()

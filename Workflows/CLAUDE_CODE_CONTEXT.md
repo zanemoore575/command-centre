@@ -28,7 +28,7 @@ bottom). n8n is a pipeline, not an agent.
 | MCP server | Render: `https://cais-mcp-server.onrender.com` | `backend/app/mcp/server.py`, start `python -m app.mcp.server`, root dir `backend`, Python 3.12.7, Starter instance, single instance (in-memory OAuth state). `/health` for health checks |
 | GitHub repo | `zanemoore575/cais-command-centre` (private) | Render deploys from it |
 | Supabase | `https://erwxszdcisyuyjmefvbj.supabase.co` | **Current** project. `wwqdkiphfpdczgmnxxrt` (in old docs) is the dead original |
-| n8n | `https://n8n-service-8act.onrender.com` | Hosts the three load-bearing workflows below |
+| n8n | `https://n8n-latest-rllq.onrender.com` | Hosts the four load-bearing workflows below |
 | Secrets | Render Environment tab (server) / n8n credentials (pipeline) | `backend/.env` is local-only, gitignored. MCP server needs `SUPABASE_SERVICE_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (artifact embeddings), Google OAuth pair |
 
 ## Load-bearing n8n workflows
@@ -38,20 +38,23 @@ bottom). n8n is a pipeline, not an agent.
 | Ingestion Pipeline | `n8n workflows/ingest-workflow.json` | 7-way extraction (entities, decisions, reflections, insights, customer insights, tasks, themes) + embedding. Two entry points: `/webhook/ingest-conversation` (voice path — inserts row) and `/webhook/ingest-pending` (poller path — updates row in place). Task extraction dedups via `agent_find_similar_open_task` (>0.45 trigram) before insert |
 | Pending Memory Poller | `n8n workflows/pending-memory-poller-workflow.json` | Every 2 min: claims any `memories` row at `status='pending'` (→`claimed`), POSTs to `/webhook/ingest-pending`. Makes ingestion source-agnostic — any writer just inserts with `status='pending'` |
 | Shortcut Voice | `shortcut_voicenote_workflow.json` | iOS Shortcut voice-note ingestion |
-| Daily Brief | `n8n workflows/daily-brief-workflow.json` | **NEW (2026-07-12)** — 6:00am Pacific/Auckland cron: open + suggested tasks + recent memories → Anthropic API (claude-sonnet-5) writes the day plan → Telegram push (new bot, push-only, no reply capture) with a link to the live check-in page |
+| Daily Brief | `n8n workflows/daily-brief-workflow.json` (id `cSXO7IBGQ5qQQY8Z`) | 6:00am Pacific/Auckland cron: open + suggested tasks + recent memories + decisions due for review → Anthropic API (claude-sonnet-5) writes the day plan → Telegram push (new bot, push-only, no reply capture) with a link to the live check-in page. An orphaned, disconnected `Telegram Trigger` node (dead cruft from the retired conversational-bot era, live webhook + credentials but zero connections) was removed 2026-07-16 — it was blocking any partial workflow update. |
 
 `n8n workflows/telegram_*.json` (the old bot/agent) are retired — do not modify
 or deploy them. The daily brief's Telegram *push* is deliberate and fine — it's
 the conversational agent that stays dead.
 
-## MCP tools (18, defined in `backend/app/mcp/server.py` + `supabase_tools.py`)
+## MCP tools (22, defined in `backend/app/mcp/server.py` + `supabase_tools.py`)
 
-- **Read:** `discover_database`, `get_tasks(status, limit)`, `get_recent_memories`,
+- **Read:** `discover_database`, `get_current_state(topic?)` — query this FIRST,
+  it's the current-truth layer — `get_tasks(status, limit)`, `get_recent_memories`,
   `search_memories`, `search_entities`, `get_memory`, `get_decisions`,
-  `get_reflections`, `get_strategic_insights`, `get_customer_insights`
-- **Write:** `log_memory`, `create_task`, `complete_task`, `update_task`,
-  `merge_tasks`, `archive_task`, `promote_task`, `snooze_task`,
-  `save_artifact`, `search_artifacts`, `get_artifact`
+  `get_decisions_due_for_review(limit)`, `get_reflections`,
+  `get_strategic_insights`, `get_customer_insights`
+- **Write:** `log_memory`, `update_current_state(topic, statement, detail?, status?, source_memory_id?)`,
+  `record_decision_outcome(decision_id, status, outcome_text?)`, `create_task`,
+  `complete_task`, `update_task`, `merge_tasks`, `archive_task`, `promote_task`,
+  `snooze_task`, `save_artifact`, `search_artifacts`, `get_artifact`
 
 ## Live check-in page (added 2026-07-12)
 
@@ -59,11 +62,17 @@ the conversational agent that stays dead.
 (outside MCP OAuth, gated by the `CHECKIN_TOKEN` env var; 503 when unset):
 
 - `GET /checkin?token=…` — the daily check-in, rendered live from Supabase on
-  every load. Focus tasks grouped by workstream, suggested-task inbox
+  every load. Decision-review card (1–2/day, worked/mixed/didn't/obsolete +
+  free-text outcome), focus tasks grouped by workstream, suggested-task inbox
   (keep/dismiss), done-today, week-in-memory, pipeline health.
 - `POST /checkin/action` — `{token, task_id, action: complete|archive|promote|snooze, until?}`
-  → the corresponding `agent_*` RPC. Returns 501 with a hint if the triage
+  → the corresponding `agent_*` RPC; or `{token, action: review_decision, decision_id, status, outcome_text?}`
+  → `agent_record_decision_outcome`. Returns 501 with a hint if the relevant
   migration hasn't been run yet.
+- The static generator (`daily-checkin/generate_checkin.py`) is read-only by
+  design (no write endpoint) — it shows decisions due for review as plain text,
+  no action buttons. **Two renderers, keep in sync**: brand tokens/CSS and any
+  new card added to `checkin.py` should be mirrored (read-only) here.
 - Custom-domain serving: set `CHECKIN_PUBLIC_HOST` so the extra Host header
   passes DNS-rebinding protection; attach the domain to the Render service.
 - Task-view rules: only tasks created after `FRESH_CUTOFF` (2026-06-17) are
@@ -93,6 +102,12 @@ memories
 
 entities        (memory_id FK, entity_type, entity_name, context)
 decisions       (memory_id FK, decision, category, reasoning, confidence_level, emotional_context)
+├── outcome (TEXT, nullable, added 2026-07-16)
+├── outcome_status (TEXT, added 2026-07-16) - 'pending' | 'worked' | 'didnt_work' | 'mixed' | 'obsolete'
+├── outcome_recorded_at (TIMESTAMPTZ, nullable, added 2026-07-16)
+└── review_after (DATE, nullable, added 2026-07-16) - explicit review date; NULL falls
+      back to "14+ days old" in agent_get_decisions_due_for_review. Not yet set at
+      extraction time — that's Wave 2 (ingest prompt work).
 reflections     (memory_id FK, reflection, reflection_type, topic, emotional_tone)
 strategic_insights (memory_id FK, insight, insight_category, confidence, suggested_action)
 customer_insights  (memory_id FK, customer_name, customer_type, pain_point, desire, quote)
@@ -127,9 +142,21 @@ artifacts
 ├── entity_name (TEXT, nullable)
 └── memory_id (FK, nullable) - companion memory row for embedding/search
 
-living_context  ⚠ orphaned: updater was the Telegram /end flow. Empty. Candidate
-                for deletion or re-homing as a periodic Claude-written summary.
+living_context  ⚠ orphaned: updater was the Telegram /end flow. Empty. Superseded
+                by current_state (below) — left in place, unused, not dropped.
 telegram_sessions  ⚠ retired era, no longer written.
+
+current_state   -- added 2026-07-16 (Wave 1a) — the "current truth" layer: one
+                -- canonical row per topic, overwritten on supersession
+├── id (UUID)
+├── topic (TEXT) - unique case-insensitively (functional unique index on lower(topic))
+├── statement (TEXT) - the one current, canonical answer
+├── detail (TEXT, nullable)
+├── status (TEXT) - 'active' | 'watch' | 'closed'
+├── source_memory_ids (BIGINT[])
+├── history (JSONB) - prior {statement, detail, status, superseded_at}, appended
+│     only when the statement/detail actually changes — never just on touch
+├── created_at / updated_at (TIMESTAMPTZ)
 ```
 
 ### RPC functions (agent tools)
@@ -150,6 +177,29 @@ agent_get_customer_insights(search_customer TEXT) → TABLE
 agent_get_memory_context(target_memory_id BIGINT) → TABLE
 agent_get_recent_memories(limit_count INT, filter_source TEXT) → TABLE  -- status='completed' only
 agent_search_by_theme(theme_keywords TEXT, limit_count INT) → TABLE     -- status='completed' only
+```
+
+**Current-truth layer (`current_state_migration.sql`, 2026-07-16, Wave 1a):**
+```sql
+agent_get_current_state(search_topic TEXT DEFAULT NULL) → TABLE
+  -- no topic → everything, active first then watch then closed, updated_at DESC.
+  -- topic ILIKE-matches topic OR statement.
+agent_update_current_state(p_topic TEXT, p_statement TEXT, p_detail TEXT DEFAULT NULL,
+                            p_status TEXT DEFAULT 'active', p_source_memory_id BIGINT DEFAULT NULL) → TABLE
+  -- upsert by lower(topic). If the topic exists and statement/detail actually
+  -- changed, the prior value is pushed into history before being overwritten.
+  -- No-op touches (same statement, e.g. just re-confirming) update updated_at/
+  -- source_memory_ids without bloating history.
+```
+
+**Decision outcome loop (`decision_outcomes_migration.sql`, 2026-07-16, Wave 1b):**
+```sql
+agent_record_decision_outcome(target_decision_id TEXT, new_outcome_status TEXT,
+                               new_outcome_text TEXT DEFAULT NULL) → TABLE
+agent_get_decisions_due_for_review(limit_count INT DEFAULT 2) → TABLE
+  -- pending only; review_after <= today, OR (review_after IS NULL AND 14+ days
+  -- old) — covers every pre-migration decision since review_after starts NULL.
+  -- certain-confidence + strategy/pricing/pivot categories surface first.
 ```
 
 **Task write-back:**
@@ -192,6 +242,9 @@ agent_get_artifact(target_artifact_id TEXT) → TABLE
 2. `apply_agent_functions.sql` — all read-only agent_* RPCs, correct types
 3. `task_writeback_migration.sql` — write-back tools, task columns, dedup RPC
 4. `artifact_storage_migration.sql` — artifacts table + Storage bucket + RPCs
+5. `task_triage_migration.sql` — suggested/archived statuses, snooze, triage RPCs
+6. `current_state_migration.sql` — current-truth layer table + RPCs (Wave 1a)
+7. `decision_outcomes_migration.sql` — decision outcome columns + RPCs (Wave 1b)
 
 Superseded SQL lives in `../archive/sql/`.
 
@@ -283,6 +336,31 @@ history, `../archive/`, and the `n8n workflows/telegram_*.json` files.
 
 ## Changelog
 
+### 2026-07-16: Current-truth layer + decision outcome loop (Wave 1)
+- `current_state_migration.sql`: new `current_state` table + `agent_get_current_state`/
+  `agent_update_current_state` RPCs. One canonical row per topic; superseded facts
+  preserved in `history`, never left sitting beside their correction. `living_context`
+  is superseded (left in place, unused). **Pending**: migration written but not yet
+  run against the live DB (no DDL credentials from Claude Code for this project) —
+  ask before trusting `current_state` rows exist live.
+- `decision_outcomes_migration.sql`: `decisions` gains `outcome`/`outcome_status`/
+  `outcome_recorded_at`/`review_after`; `agent_record_decision_outcome` +
+  `agent_get_decisions_due_for_review` RPCs. Same pending-migration caveat.
+- MCP server: 4 new tools — `get_current_state`, `update_current_state`,
+  `record_decision_outcome`, `get_decisions_due_for_review` (22 total).
+- Check-in page: new "Decision review" card (worked/mixed/didn't work/obsolete +
+  free-text outcome), both `checkin.py` (interactive) and `generate_checkin.py`
+  (read-only mirror).
+- Daily Brief n8n workflow (`cSXO7IBGQ5qQQY8Z`): new `Get Decisions Due` node
+  feeds `decisions_due_for_review` into the brief payload/prompt (item 6,
+  "Decision check-in"); set `onError: continueRegularOutput` so a missing RPC
+  (migration not yet run) degrades gracefully instead of breaking the brief.
+  Also removed an orphaned, disconnected `Telegram Trigger` node (dead cruft
+  from the retired conversational-bot era) that was blocking any partial
+  workflow update.
+- Fixed doc drift: n8n URL was still `n8n-service-8act.onrender.com`, live
+  instance is `n8n-latest-rllq.onrender.com`.
+
 ### 2026-07-12: Task triage + live check-in + daily brief
 - `task_triage_migration.sql`: suggested/archived statuses, snooze, bulk archive
   of the pre-17-Jun open-task flood, fixed `agent_get_tasks` (limit param, sane
@@ -319,4 +397,4 @@ history, `../archive/`, and the `n8n workflows/telegram_*.json` files.
 
 ---
 
-**Last updated**: 2026-07-11 by Claude Code (full refresh against live database)
+**Last updated**: 2026-07-16 by Claude Code (Wave 1: current-truth layer + decision outcome loop)

@@ -115,6 +115,11 @@ def fetch_all():
             f"/rest/v1/decisions?select=id&created_at=gte.{week_ago}", count=True)
     except Exception:
         decisions_7d = None
+    try:
+        decisions_due = supabase("/rest/v1/rpc/agent_get_decisions_due_for_review", method="POST",
+                                  body={"limit_count": 2})
+    except Exception:
+        decisions_due = []  # decision_outcomes_migration.sql not applied yet
 
     return {
         "today": today,
@@ -125,6 +130,7 @@ def fetch_all():
         "mem_week": sum(1 for m in mem_meta if m["created_at"] >= week_ago),
         "recent": [m for m in recent if m["created_at"] >= week_ago],
         "decisions_7d": decisions_7d,
+        "decisions_due": decisions_due,
     }
 
 
@@ -229,6 +235,15 @@ def render(d):
             f'<span class="h-status">{esc(status)}</span><span class="h-n">{n}</span>'
             f'<span class="h-note">{esc(note)}</span></div>')
 
+    decision_rows = []
+    for rev in d["decisions_due"]:
+        made = days_ago(rev.get("decision_date") or "2026-01-01", today)
+        cat = esc(rev.get("category") or "uncategorised")
+        reasoning = f'<p class="decision-reasoning">{esc(rev["reasoning"])}</p>' if rev.get("reasoning") else ""
+        decision_rows.append(
+            f'<div class="decision"><div class="decision-top"><span class="meta">{cat} · decided {made}</span></div>'
+            f'<div class="decision-body"><p class="decision-text">{esc(rev["decision_text"])}</p>{reasoning}</div></div>')
+
     dec = f'{d["decisions_7d"]}' if d["decisions_7d"] is not None else "—"
     generated = datetime.now().strftime("%-d %b %Y, %-I:%M %p")
     stuck_cls = "crit" if stuck else "good"
@@ -303,6 +318,11 @@ details.task-x[open] .task-text {{ display:block; -webkit-line-clamp:unset; line
 details.task-x > summary::after {{ content:"Show more"; display:inline-block; margin-top:7px; font-size:12px; font-weight:600; color:var(--accent); }}
 details.task-x[open] > summary::after {{ content:"Show less"; }}
 .task .meta, .due {{ font-size:12px; color:var(--muted); font-family:ui-monospace,Menlo,monospace; }}
+.decision {{ padding:14px 16px; border:1px solid var(--line); border-radius:12px; background:var(--surface); margin-bottom:10px; }}
+.decision-top {{ margin-bottom:6px; }}
+.decision-top .meta {{ font-size:12px; color:var(--muted); font-family:ui-monospace,Menlo,monospace; }}
+.decision-text {{ font-size:15px; overflow-wrap:anywhere; }}
+.decision-reasoning {{ font-size:13px; color:var(--muted); margin-top:4px; }}
 .due.overdue {{ color:var(--crit); font-weight:600; }}
 .chip {{ flex:none; font-size:11px; font-weight:600; padding:2px 9px; border-radius:99px;
   letter-spacing:0.02em; white-space:nowrap; }}
@@ -361,6 +381,8 @@ footer p {{ margin-bottom:4px; }}
     <div class="eyebrow hot">Today’s focus</div>
     {task_rows(urgent) or '<p class="callout">Nothing marked immediate or this-week. Pull something up from the later list.</p>'}
   </section>
+
+  {'<section><div class="eyebrow">Decision review · ' + str(len(decision_rows)) + ' to close out</div>' + "".join(decision_rows) + '<div class="callout">Read-only here — record outcomes from the live check-in page or Claude.</div></section>' if decision_rows else ''}
 
   <section>
     <div class="eyebrow">Coming up · {len(later)} tasks</div>

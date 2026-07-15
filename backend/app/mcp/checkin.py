@@ -139,6 +139,10 @@ def _fetch():
     mem_meta = _rest("memories", {"select": "id,status,created_at", "limit": "2000"})
     recent = [m for m in _rpc("agent_get_recent_memories", {"limit_count": 30})
               if m["created_at"] >= week_ago]
+    try:
+        decisions_due = _rpc("agent_get_decisions_due_for_review", {"limit_count": 2})
+    except httpx.HTTPStatusError:
+        decisions_due = []  # decision_outcomes_migration.sql not applied yet
 
     return {
         "now": now, "today": today,
@@ -148,6 +152,7 @@ def _fetch():
         "mem_status": Counter(m["status"] for m in mem_meta),
         "mem_week": sum(1 for m in mem_meta if m["created_at"] >= week_ago),
         "recent": recent,
+        "decisions_due": decisions_due,
     }
 
 
@@ -189,6 +194,24 @@ def _task_row(t, today, kind="open") -> str:
             f'<div class="acts">{buttons}</div></div>')
 
 
+def _decision_row(dec, today) -> str:
+    did = esc(dec["decision_id"])
+    made = _days_ago(dec.get("decision_date") or "2026-01-01", today)
+    meta = f'{esc(dec.get("category") or "uncategorised")} · decided {made}'
+    reasoning = (f'<p class="decision-reasoning">{esc(dec["reasoning"])}</p>'
+                 if dec.get("reasoning") else "")
+    return (f'<div class="decision" id="decision-{did}">'
+            f'<div class="decision-top"><span class="meta">{meta}</span></div>'
+            f'<div class="decision-body"><p class="decision-text">{esc(dec["decision_text"])}</p>{reasoning}</div>'
+            f'<textarea class="outcome-input" placeholder="What actually happened? (optional)" rows="2"></textarea>'
+            f'<div class="acts">'
+            f'<button class="act worked" data-action="review_decision" data-status="worked" data-id="{did}">Worked</button>'
+            f'<button class="act mixed" data-action="review_decision" data-status="mixed" data-id="{did}">Mixed</button>'
+            f'<button class="act didnt" data-action="review_decision" data-status="didnt_work" data-id="{did}">Didn’t work</button>'
+            f'<button class="act dismiss" data-action="review_decision" data-status="obsolete" data-id="{did}">Obsolete</button>'
+            f'</div></div>')
+
+
 def _grouped(tasks, today) -> str:
     groups = {}
     for t in tasks:
@@ -215,6 +238,13 @@ def render_page(d) -> str:
     later = [t for t in d["open"] if t["task_id"] not in focus_ids]
     stuck = sum(v for k, v in d["mem_status"].items() if k != "completed")
     stuck_cls = "crit" if stuck else "good"
+
+    decision_review_html = ""
+    if d["decisions_due"]:
+        rows = "\n".join(_decision_row(dec, today) for dec in d["decisions_due"])
+        decision_review_html = (
+            f'<section><div class="eyebrow">Decision review · '
+            f'<span id="review-n">{len(d["decisions_due"])}</span> to close out</div>{rows}</section>')
 
     suggested_html = ""
     if d["suggested"]:
@@ -320,6 +350,19 @@ details.task-x[open] > summary::after {{ content:"Show less"; }}
 .act:hover, .act:focus-visible {{ border-color:var(--accent); color:var(--accent-ink); outline:none; }}
 .act.keep {{ border-color:var(--accent); color:var(--accent-ink); background:var(--accent-soft); }}
 .act.dismiss:hover {{ border-color:var(--crit); color:var(--crit); }}
+.decision {{ padding:13px 15px; border:1px solid var(--line); border-radius:12px; background:var(--surface); margin-bottom:10px; }}
+.decision.gone {{ opacity:0; transform:translateX(12px); transition:opacity .3s, transform .3s; }}
+.decision-top {{ margin-bottom:6px; }}
+.decision-text {{ font-size:14.5px; overflow-wrap:anywhere; }}
+.decision-reasoning {{ font-size:12.5px; color:var(--muted); margin-top:4px; }}
+.outcome-input {{ width:100%; margin-top:10px; padding:8px 10px; border:1px solid var(--line); border-radius:8px;
+  background:var(--bg); color:var(--ink); font:inherit; font-size:13px; resize:vertical; }}
+.outcome-input:focus-visible {{ outline:2px solid var(--accent); outline-offset:1px; }}
+.act.worked {{ border-color:var(--good); color:var(--good); }}
+.act.worked:hover {{ background:var(--good-soft); }}
+.act.mixed {{ border-color:var(--warn); color:var(--warn); }}
+.act.mixed:hover {{ background:var(--warn-soft); }}
+.act.didnt:hover {{ border-color:var(--crit); color:var(--crit); }}
 .done-row {{ display:flex; gap:10px; align-items:baseline; padding:7px 0; border-bottom:1px solid var(--line); }}
 .done-row:last-child {{ border-bottom:none; }}
 .done-row p {{ font-size:14px; color:var(--muted); text-decoration:line-through; flex:1; }}
@@ -375,6 +418,8 @@ footer p {{ margin-bottom:4px; }}
     <div class="stat {stuck_cls}"><div class="label">Stuck in pipeline</div><div class="n">{stuck}</div>
       <div class="sub">memories not fully processed</div></div>
   </div>
+
+  {decision_review_html}
 
   {suggested_html}
 
@@ -441,8 +486,35 @@ footer p {{ margin-bottom:4px; }}
   document.addEventListener("click", function (e) {{
     var btn = e.target.closest("[data-action]");
     if (!btn) return;
-    var row = document.getElementById("task-" + btn.dataset.id);
     var action = btn.dataset.action;
+
+    if (action === "review_decision") {{
+      var drow = document.getElementById("decision-" + btn.dataset.id);
+      var outcomeText = drow.querySelector(".outcome-input").value;
+      drow.querySelectorAll("button, textarea").forEach(function (b) {{ b.disabled = true; }});
+      fetch("checkin/action", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify({{
+          token: token, action: action, decision_id: btn.dataset.id,
+          status: btn.dataset.status, outcome_text: outcomeText
+        }})
+      }}).then(function (r) {{ return r.json().then(function (j) {{ return {{ ok: r.ok, j: j }}; }}); }})
+        .then(function (res) {{
+          if (!res.ok) throw new Error(res.j.error || "failed");
+          drow.classList.add("gone");
+          setTimeout(function () {{ drow.remove(); }}, 320);
+          bump("review-n", -1);
+          toast("Outcome recorded — thanks for closing the loop");
+        }})
+        .catch(function (err) {{
+          drow.querySelectorAll("button, textarea").forEach(function (b) {{ b.disabled = false; }});
+          toast("Couldn’t save: " + err.message);
+        }});
+      return;
+    }}
+
+    var row = document.getElementById("task-" + btn.dataset.id);
     var body = {{ token: token, task_id: btn.dataset.id, action: action }};
     if (action === "snooze") {{
       var until = new Date();
@@ -546,6 +618,30 @@ async def checkin_action(request: Request) -> Response:
         if not result:
             return JSONResponse({"error": "task not found"}, status_code=404)
         return JSONResponse({"ok": True, "task": result[0]})
+
+    # Record a decision outcome from the "Decision review" card.
+    if action == "review_decision":
+        decision_id = body.get("decision_id", "")
+        status = body.get("status")
+        if not re.fullmatch(r"[0-9a-fA-F-]{36}", decision_id):
+            return JSONResponse({"error": "bad decision_id"}, status_code=400)
+        if status not in ("worked", "didnt_work", "mixed", "obsolete"):
+            return JSONResponse({"error": "bad status"}, status_code=400)
+        try:
+            result = _rpc("agent_record_decision_outcome", {
+                "target_decision_id": decision_id,
+                "new_outcome_status": status,
+                "new_outcome_text": (body.get("outcome_text") or "").strip() or None,
+            })
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return JSONResponse(
+                    {"error": "agent_record_decision_outcome not found — run decision_outcomes_migration.sql in Supabase first"},
+                    status_code=501)
+            return JSONResponse({"error": f"database error ({e.response.status_code})"}, status_code=502)
+        if not result:
+            return JSONResponse({"error": "decision not found"}, status_code=404)
+        return JSONResponse({"ok": True, "decision": result[0] if isinstance(result, list) else result})
 
     if action not in ACTIONS:
         return JSONResponse({"error": f"unknown action '{action}'"}, status_code=400)

@@ -135,6 +135,54 @@ def tool_snooze_task(task_id: str, until: str) -> dict:
     return {}
 
 
+def tool_get_current_state(topic: Optional[str] = None) -> list[dict]:
+    """Get the current-truth layer: one canonical row per topic, most recently updated first."""
+    result = _rpc("agent_get_current_state", {"search_topic": topic})
+    return result if isinstance(result, list) else []
+
+
+def tool_update_current_state(
+    topic: str,
+    statement: str,
+    detail: Optional[str] = None,
+    status: str = "active",
+    source_memory_id: Optional[int] = None,
+) -> dict:
+    """
+    Upsert the canonical answer for a topic. If the topic already exists and the
+    statement/detail changed, the prior value is pushed into history before
+    being overwritten — the topic always reflects the latest known truth.
+    """
+    result = _rpc("agent_update_current_state", {
+        "p_topic": topic,
+        "p_statement": statement,
+        "p_detail": detail,
+        "p_status": status,
+        "p_source_memory_id": source_memory_id,
+    })
+    if isinstance(result, list) and result:
+        return result[0]
+    return {}
+
+
+def tool_record_decision_outcome(decision_id: str, status: str, outcome_text: Optional[str] = None) -> dict:
+    """Record what actually happened after a past decision — closes the outcome loop."""
+    result = _rpc("agent_record_decision_outcome", {
+        "target_decision_id": decision_id,
+        "new_outcome_status": status,
+        "new_outcome_text": outcome_text,
+    })
+    if isinstance(result, list) and result:
+        return result[0]
+    return {}
+
+
+def tool_get_decisions_due_for_review(limit: int = 2) -> list[dict]:
+    """Get pending decisions old enough (or explicitly scheduled) to review for outcome."""
+    result = _rpc("agent_get_decisions_due_for_review", {"limit_count": min(limit, 10)})
+    return result if isinstance(result, list) else []
+
+
 def tool_get_insights(category: Optional[str] = None, days: int = 365) -> list[dict]:
     """Get strategic insights, optionally filtered by category."""
     result = _rpc("agent_get_strategic_insights", {

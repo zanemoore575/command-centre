@@ -1,6 +1,6 @@
 # Command Centre — Living Project Status
 
-Updated: 2026-07-12 (task triage + live check-in + daily brief built; see `SETUP_CHECKIN_BRIEF.md` for go-live steps)
+Updated: 2026-07-16 (Wave 1 built: current-truth layer + decision outcome loop — see changelog; migrations pending a live-DB run)
 
 ## What this system is now
 
@@ -23,7 +23,8 @@ that survived is better than what was envisioned:
 - Hierarchical specialist-agent system (Memory/Entity/Strategy specialists)
 - Next.js frontend + FastAPI journal app (`frontend/`, `backend/` app routes —
   the backend folder still matters, but only for `backend/app/mcp/`, the MCP server)
-- `living_context` table (empty; was updated by the Telegram `/end` flow, which no longer runs)
+- `living_context` table (empty; was updated by the Telegram `/end` flow, which no longer runs
+  — superseded 2026-07-16 by `current_state`, see below)
 
 ## Architecture (current)
 
@@ -41,16 +42,24 @@ iOS voice notes ─────────┘   extraction + embeddings     ent
 - **MCP server:** `backend/app/mcp/server.py`, deployed on Render (Starter instance,
   root dir `backend`, start `python -m app.mcp.server`), GitHub repo
   `zanemoore575/cais-command-centre` (private)
-- **n8n:** `https://n8n-service-8act.onrender.com` — ingest workflow + pending
-  poller + voice-note webhook are the only load-bearing workflows left
-- **MCP tools (21):** discover_database, get_tasks, get_recent_memories,
-  search_memories, search_entities, get_memory, get_decisions, get_reflections,
-  get_strategic_insights, get_customer_insights, log_memory, create_task,
-  complete_task, update_task, merge_tasks, archive_task, promote_task,
-  snooze_task, save_artifact, search_artifacts, get_artifact
+- **n8n:** `https://n8n-latest-rllq.onrender.com` — ingest workflow + pending
+  poller + voice-note webhook + daily brief are the load-bearing workflows
+- **MCP tools (22):** discover_database, get_current_state, get_tasks,
+  get_recent_memories, search_memories, search_entities, get_memory,
+  get_decisions, get_decisions_due_for_review, get_reflections,
+  get_strategic_insights, get_customer_insights, log_memory,
+  update_current_state, record_decision_outcome, create_task, complete_task,
+  update_task, merge_tasks, archive_task, promote_task, snooze_task,
+  save_artifact, search_artifacts, get_artifact
 - **Live check-in page:** served by the MCP server at `/checkin?token=…`
   (token-gated, rendered from live data on every load; complete/snooze/dismiss
-  buttons write back through the agent_* RPCs)
+  and decision-review buttons write back through the agent_* RPCs)
+- **Current-truth layer:** `current_state` table — one canonical row per topic,
+  overwritten (not appended) on supersession. **Not yet seeded or confirmed
+  live** — migration written 2026-07-16, awaiting a Supabase SQL Editor run.
+- **Decision outcome loop:** `decisions` gained outcome tracking columns +
+  a "due for review" selector surfaced on the check-in page and in the 6am
+  brief. Same pending-migration caveat as above.
 
 ## Live data snapshot (2026-07-11)
 
@@ -102,8 +111,9 @@ iOS voice notes ─────────┘   extraction + embeddings     ent
      `completed` after backfilling extraction.
    - 2 `transcribed` (23–24 Jun voice notes), 1 `extracting` (Dec 2025) — stuck.
 4. **`living_context` is empty and orphaned** — its updater (Telegram `/end`) is
-   retired. Either delete it or re-home the concept (e.g. a periodic Claude-written
-   summary memory).
+   retired. → **Fix built 2026-07-16**: `current_state` table replaces the concept
+   (`current_state_migration.sql`), pending a live-DB run. `living_context` left
+   in place, unused, not dropped.
 5. **claude.ai MCP connector token expires** and requires manual re-auth in
    claude.ai connector settings (hit on 2026-07-11 from Claude Code). Worth checking
    whether the server can issue longer-lived/refresh tokens.
@@ -137,14 +147,37 @@ Three layers, all coded and verified — manual go-live steps in `SETUP_CHECKIN_
 
 ## Current priorities
 
-1. **Go-live checklist in `SETUP_CHECKIN_BRIEF.md`** — Supabase migration,
+1. **Run the two Wave 1 migrations** (`Workflows/current_state_migration.sql`,
+   `Workflows/decision_outcomes_migration.sql`) in the Supabase SQL Editor on
+   `erwxszdcisyuyjmefvbj` — Claude Code has no DDL credentials for this project
+   (only REST/service-key access), so this step needs Zane. Once run: seed
+   `current_state` (~15–25 topics from the last ~60 days of memories) and
+   verify end-to-end.
+2. **Go-live checklist in `SETUP_CHECKIN_BRIEF.md`** — Supabase migration,
    Render env + deploy, custom domain, n8n imports, new Telegram bot.
-2. Re-drive the 62 stuck/invisible memories and align on one terminal status
+3. Re-drive the 62 stuck/invisible memories and align on one terminal status
    (`completed`) so recall sees everything.
-3. Re-authorize the claude.ai MCP connector (and Gmail/Calendar connectors).
-4. Keep this doc updated with each progress change.
+4. Re-authorize the claude.ai MCP connector (and Gmail/Calendar connectors).
+5. Keep this doc updated with each progress change.
 
 ## Changelog
+
+### 2026-07-16 — Wave 1: current-truth layer + decision outcome loop
+- `current_state` table + `get_current_state`/`update_current_state` MCP tools —
+  one canonical, overwritten-not-appended row per topic; supersession preserved
+  in `history`. Replaces the orphaned `living_context` concept.
+- `decisions` gains outcome tracking (`outcome`, `outcome_status`,
+  `outcome_recorded_at`, `review_after`) + `record_decision_outcome`/
+  `get_decisions_due_for_review` MCP tools — closes the loop on which past
+  decisions were actually right.
+- Check-in page: new "Decision review" card (both the live server page and the
+  read-only static generator).
+- Daily Brief n8n workflow: surfaces decisions due for review as brief item 6;
+  removed an orphaned, disconnected `Telegram Trigger` node (dead cruft from
+  the retired conversational-bot era) that was blocking workflow updates.
+- **Pending**: both SQL migrations are written but not yet run against the live
+  DB (see Current priorities #1) — `current_state` and decision-outcome tools
+  will 404/degrade gracefully until then.
 
 ### 2026-07-12 — Task triage + live check-in + 6am daily brief (all three phases)
 - **Triage:** `task_triage_migration.sql` (archived/suggested statuses, snooze,
