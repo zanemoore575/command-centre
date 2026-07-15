@@ -85,6 +85,8 @@ from app.mcp.supabase_tools import (
     tool_update_current_state,
     tool_record_decision_outcome,
     tool_get_decisions_due_for_review,
+    tool_get_entity_matches_due_for_review,
+    tool_resolve_entity_match,
     tool_discover_database,
     tool_log_memory,
     tool_complete_task,
@@ -335,6 +337,35 @@ def get_decisions_due_for_review(limit: int = 2) -> list[dict]:
         limit: Max decisions to surface (default 2, max 10).
     """
     return tool_get_decisions_due_for_review(limit=limit)
+
+
+@mcp.tool()
+def get_entity_matches_due_for_review(limit: int = 3) -> list[dict]:
+    """
+    Get pending ambiguous entity matches — mentions that came in below the
+    auto-merge confidence bar (e.g. "Jake" against an existing "Jake Shirley"
+    canonical) and are waiting for a yes/no. Also surfaced on the check-in page.
+
+    Args:
+        limit: Max matches to return (default 3, max 20).
+    """
+    return tool_get_entity_matches_due_for_review(limit=limit)
+
+
+@mcp.tool()
+def resolve_entity_match(match_id: str, action: str, note: Optional[str] = None) -> dict:
+    """
+    Confirm or reject a pending entity match. Use this the moment Zane clarifies
+    who an ambiguous mention actually was.
+
+    Args:
+        match_id: The match's UUID, from get_entity_matches_due_for_review.
+        action: 'confirm' (it's the same entity — merges them) or 'reject'
+            (different entity — keeps them separate).
+        note: Optional clarification in Zane's words (e.g. "that Jake is my
+            neighbour, not Jake Shirley") — stored for future context.
+    """
+    return tool_resolve_entity_match(match_id=match_id, action=action, note=note)
 
 
 @mcp.tool()

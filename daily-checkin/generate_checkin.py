@@ -120,6 +120,11 @@ def fetch_all():
                                   body={"limit_count": 2})
     except Exception:
         decisions_due = []  # decision_outcomes_migration.sql not applied yet
+    try:
+        entity_matches_due = supabase("/rest/v1/rpc/agent_get_entity_matches_due_for_review", method="POST",
+                                       body={"limit_count": 3})
+    except Exception:
+        entity_matches_due = []  # entity_resolution_migration.sql not applied yet
 
     return {
         "today": today,
@@ -131,6 +136,7 @@ def fetch_all():
         "recent": [m for m in recent if m["created_at"] >= week_ago],
         "decisions_7d": decisions_7d,
         "decisions_due": decisions_due,
+        "entity_matches_due": entity_matches_due,
     }
 
 
@@ -243,6 +249,15 @@ def render(d):
         decision_rows.append(
             f'<div class="decision"><div class="decision-top"><span class="meta">{cat} · decided {made}</span></div>'
             f'<div class="decision-body"><p class="decision-text">{esc(rev["decision_text"])}</p>{reasoning}</div></div>')
+
+    entity_match_rows = []
+    for m in d["entity_matches_due"]:
+        seen = days_ago(m.get("created_date") or "2026-01-01", today)
+        pct = int(round((m.get("similarity") or 0) * 100))
+        entity_match_rows.append(
+            f'<div class="decision"><div class="decision-top"><span class="meta">seen {seen} · {pct}% match</span></div>'
+            f'<div class="decision-body"><p class="decision-text">You mentioned '
+            f'“{esc(m["candidate_name"])}” — is that the same as “{esc(m["suggested_name"])}”?</p></div></div>')
 
     dec = f'{d["decisions_7d"]}' if d["decisions_7d"] is not None else "—"
     generated = datetime.now().strftime("%-d %b %Y, %-I:%M %p")
@@ -383,6 +398,8 @@ footer p {{ margin-bottom:4px; }}
   </section>
 
   {'<section><div class="eyebrow">Decision review · ' + str(len(decision_rows)) + ' to close out</div>' + "".join(decision_rows) + '<div class="callout">Read-only here — record outcomes from the live check-in page or Claude.</div></section>' if decision_rows else ''}
+
+  {'<section><div class="eyebrow">Entity match review · ' + str(len(entity_match_rows)) + ' to confirm</div>' + "".join(entity_match_rows) + '<div class="callout">Read-only here — confirm/reject from the live check-in page or Claude.</div></section>' if entity_match_rows else ''}
 
   <section>
     <div class="eyebrow">Coming up · {len(later)} tasks</div>

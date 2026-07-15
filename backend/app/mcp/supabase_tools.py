@@ -183,6 +183,24 @@ def tool_get_decisions_due_for_review(limit: int = 2) -> list[dict]:
     return result if isinstance(result, list) else []
 
 
+def tool_get_entity_matches_due_for_review(limit: int = 3) -> list[dict]:
+    """Get pending ambiguous entity matches awaiting confirm/reject."""
+    result = _rpc("agent_get_entity_matches_due_for_review", {"limit_count": min(limit, 20)})
+    return result if isinstance(result, list) else []
+
+
+def tool_resolve_entity_match(match_id: str, action: str, note: Optional[str] = None) -> dict:
+    """Confirm or reject an ambiguous entity match ('Jake' -> 'Jake Shirley'?)."""
+    result = _rpc("agent_resolve_entity_match", {
+        "match_id": match_id,
+        "action": action,
+        "new_note": note,
+    })
+    if isinstance(result, list) and result:
+        return result[0]
+    return {}
+
+
 def tool_get_insights(category: Optional[str] = None, days: int = 365) -> list[dict]:
     """Get strategic insights, optionally filtered by category."""
     result = _rpc("agent_get_strategic_insights", {

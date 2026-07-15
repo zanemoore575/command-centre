@@ -9,10 +9,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        2016,
-        3600
+        -544,
+        2080
       ],
-      "id": "8b2e0612-ff03-46c2-befa-984ae8962971",
+      "id": "bd2c14ae-1ef7-4344-ad8f-71250eef1946",
       "name": "Webhook",
       "webhookId": "2e7ea4b0-b0ad-463b-9401-61210b64265b"
     },
@@ -47,15 +47,15 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        2240,
-        3600
+        -320,
+        2080
       ],
-      "id": "b08375b4-16f8-4f99-beb4-ef583c989cc2",
+      "id": "b64a2fdd-178f-4a8d-83a8-26c04eb8c1d0",
       "name": "Store Base Memory",
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       }
     },
@@ -63,15 +63,15 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "gpt-4.1-mini",
+          "value": "gpt-5.6-terra",
           "mode": "list",
-          "cachedResultName": "GPT-4.1-MINI"
+          "cachedResultName": "GPT-5.6-TERRA"
         },
         "responses": {
           "values": [
             {
               "role": "system",
-              "content": "Extract ONLY significant entities from this conversation.\n\nPEOPLE (proper nouns only):\n- Clients: Rachel Burnard, Aaron, William, etc.\n- Partners/Family: Tim, Nadia, Tate, Lake, Oakley\n- Industry contacts (named individuals)\n\nCOMPANIES (proper nouns only):\n- Client businesses with names: Greenmachine\n- NOT generic terms like 'scaffolding companies'\n\nPROJECTS (named projects only):\n- Rach-bot, Mandy, Command Centre\n- Specific named implementations\n\nTOOLS (actual software/platforms):\n- n8n, Supabase, OpenAI, Twilio, Whisper\n\nSIGNIFICANT CONCEPTS (major themes only - max 3-5):\n- Overarching business/personal concepts\n- Examples: 'integrity vs survival anxiety', 'depth vs speed tension'\n- NOT individual pain points or phrases\n\nRULES:\n- Do NOT extract 'Zane'\n- Do NOT extract generic terms (business model, ROI, UX)\n- Keep to 15-25 entities MAX\n- Include brief context for each\n\nReturn JSON:\n{\n  \"entities\": [\n    {\n      \"entity_type\": \"person|company|project|tool|concept\",\n      \"entity_name\": \"exact name\",\n      \"context\": \"one sentence: how mentioned and why it matters\"\n    }\n  ]\n}"
+              "content": "RULE ONE, before anything else: never extract 'Zane' as an entity. He is the narrator of every conversation, not a subject in it.\n\nExtract ONLY the most significant named entities from this conversation — proper nouns, not phrases or themes.\n\nPEOPLE (proper nouns only):\n- Clients: Rachel Burnard, Aaron, William, etc.\n- Partners/Family: Tim, Nadia, Tate, Lake, Oakley\n- Industry contacts (named individuals)\n\nCOMPANIES (proper nouns only):\n- Client businesses with names: Greenmachine\n- NOT generic terms like 'scaffolding companies'\n\nPROJECTS (named projects only):\n- Rach-bot, Mandy, Command Centre\n- Specific named implementations\n\nTOOLS (actual software/platforms):\n- n8n, Supabase, OpenAI, Twilio, Whisper\n\nCANONICAL-NAME RULES (critical — this feeds an entity-resolution system that merges mentions of the same thing across conversations):\n- Use the fullest clean name mentioned in THIS conversation, once. If both \"Jake\" and \"Jake Shirley\" appear, extract \"Jake Shirley\", not both.\n- No possessives (\"Jake's intake assistant\") — extract \"Jake\" and/or \"the intake assistant\" project separately if each is independently significant, never the possessive phrase itself.\n- No compound/slash phrases (\"JAKE / CORE FINANCE - PHASE 1\" is not a name) — extract \"Jake\" and/or \"Core Finance\" separately if each is independently significant.\n- One entity per distinct person/company/project/tool — never the same thing twice under different wording within this conversation.\n\nDO NOT extract:\n- 'Zane' (see rule one)\n- Generic terms (business model, ROI, UX)\n- Themes, concepts, or abstract ideas — those belong in strategic insights or reflections, not here\n- Anything that isn't a specific proper noun\n\nHARD LIMIT: at most 8 entities. Most conversations should produce 3-6. Quality over coverage — only extract what's genuinely significant.\n\nReturn JSON:\n{\n  \"entities\": [\n    {\n      \"entity_type\": \"person|company|project|tool\",\n      \"entity_name\": \"exact name\",\n      \"context\": \"one sentence: how mentioned and why it matters\"\n    }\n  ]\n}"
             },
             {
               "content": "={{ $json.transcript }}"
@@ -90,15 +90,15 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.1,
       "position": [
-        2848,
-        3024
+        288,
+        1504
       ],
-      "id": "c4bde249-509d-4626-a2b6-f4abcb378f91",
+      "id": "a4d2face-b0e7-4a31-8a31-dfb99df6a04a",
       "name": "Extract Entities",
       "credentials": {
         "openAiApi": {
-          "id": "pDJOyVluHP4GnR2q",
-          "name": "OpenAi account"
+          "id": "tHpgI3q3z2juUPO5",
+          "name": "OpenAI account"
         }
       }
     },
@@ -109,10 +109,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4480,
-        4192
+        1920,
+        2912
       ],
-      "id": "b7ad44b1-f610-4a3e-9e3b-9a1ae8b339ed",
+      "id": "cfb177d7-89e3-48b1-a05d-24f446424c83",
       "name": "Prepare Theme Data"
     },
     {
@@ -122,25 +122,25 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        3424,
-        3520
+        864,
+        2000
       ],
-      "id": "c4904e04-5d6c-42fe-8d7a-8f049ff3ddfe",
+      "id": "1efca879-8ae9-43bb-aeb8-5ca3fcfc2816",
       "name": "Merge"
     },
     {
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "gpt-4.1-mini",
+          "value": "gpt-5.6-terra",
           "mode": "list",
-          "cachedResultName": "GPT-4.1-MINI"
+          "cachedResultName": "GPT-5.6-TERRA"
         },
         "responses": {
           "values": [
             {
               "role": "system",
-              "content": "You are extracting ZANE'S ACTUAL BUSINESS DECISIONS from his ChatGPT conversation.\n\nA decision is something ZANE:\n- Decided to do: \"I'm going to focus on trades businesses in Whangarei\"\n- Decided NOT to do: \"I'm not going to build voice AI receptionists\"\n- Changed direction on: \"I'm pivoting away from real estate to trades\"\n- Set a specific strategy: \"I'll charge $500/month for Rach-bot\"\n- Chose an approach: \"I'll use human-in-the-loop instead of full automation\"\n\nDO NOT extract:\n- General observations about markets\n- Philosophical discussions about business\n- Abstract principles (unless Zane explicitly adopted them)\n- Things Zane is \"considering\" without commitment\n\nONLY extract decisions where Zane EXPLICITLY:\n- Said \"I'm going to...\"\n- Said \"I decided...\"\n- Said \"I won't do X\"\n- Made a concrete choice\n\nReturn JSON:\n{\n  \"decisions\": [\n    {\n      \"decision\": \"Exact statement of what Zane decided (use his words)\",\n      \"category\": \"pricing|market|product|strategy|pivot|values\",\n      \"reasoning\": \"Why Zane made this choice (from conversation)\",\n      \"alternatives_considered\": [\"what else he thought about\"],\n      \"confidence_level\": \"certain|tentative|exploring|struggling\",\n      \"emotional_context\": \"how he felt (from his words: excited, uncertain, frustrated, etc.)\"\n    }\n  ]\n}\n\nBE STRICT. If Zane didn't explicitly decide something, return empty array."
+              "content": "You are extracting ZANE'S ACTUAL BUSINESS DECISIONS from his ChatGPT conversation.\n\nA decision is something ZANE:\n- Decided to do: \"I'm going to focus on trades businesses in Whangarei\"\n- Decided NOT to do: \"I'm not going to build voice AI receptionists\"\n- Changed direction on: \"I'm pivoting away from real estate to trades\"\n- Set a specific strategy: \"I'll charge $500/month for Rach-bot\"\n- Chose an approach: \"I'll use human-in-the-loop instead of full automation\"\n\nDO NOT extract:\n- General observations about markets\n- Philosophical discussions about business\n- Abstract principles (unless Zane explicitly adopted them)\n- Things Zane is \"considering\" without commitment\n\nONLY extract decisions where Zane EXPLICITLY:\n- Said \"I'm going to...\"\n- Said \"I decided...\"\n- Said \"I won't do X\"\n- Made a concrete choice\n\nHARD LIMIT: at most 3 decisions per conversation. Most conversations should produce 0-1 — an empty array is a good answer.\n\nFor each decision, set suggested_review_days — how long before it's worth checking whether it actually worked out: 7 for certain/high-stakes strategy or pivot calls, 14 for most others, 30 for tentative/exploring calls that will take longer to play out.\n\nReturn JSON:\n{\n  \"decisions\": [\n    {\n      \"decision\": \"Exact statement of what Zane decided (use his words)\",\n      \"category\": \"pricing|market|product|strategy|pivot|values\",\n      \"reasoning\": \"Why Zane made this choice (from conversation)\",\n      \"alternatives_considered\": [\"what else he thought about\"],\n      \"confidence_level\": \"certain|tentative|exploring|struggling\",\n      \"emotional_context\": \"how he felt (from his words: excited, uncertain, frustrated, etc.)\",\n      \"suggested_review_days\": 14\n    }\n  ]\n}\n\nBE STRICT. If Zane didn't explicitly decide something, return empty array."
             },
             {
               "content": "={{ $json.transcript }}"
@@ -153,22 +153,21 @@
             "textOptions": {
               "type": "json_object"
             }
-          },
-          "temperature": 0.3
+          }
         }
       },
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.1,
       "position": [
-        2848,
-        3216
+        288,
+        1696
       ],
-      "id": "c258f39b-8099-476c-b256-9c3db93ab8ab",
+      "id": "0c90665b-4179-4405-9d17-fda2e6fe9e88",
       "name": "Extract Business Decisions",
       "credentials": {
         "openAiApi": {
-          "id": "pDJOyVluHP4GnR2q",
-          "name": "OpenAi account"
+          "id": "tHpgI3q3z2juUPO5",
+          "name": "OpenAI account"
         }
       }
     },
@@ -176,9 +175,9 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "gpt-4.1-mini",
+          "value": "gpt-5.6-terra",
           "mode": "list",
-          "cachedResultName": "GPT-4.1-MINI"
+          "cachedResultName": "GPT-5.6-TERRA"
         },
         "responses": {
           "values": [
@@ -197,22 +196,21 @@
             "textOptions": {
               "type": "json_object"
             }
-          },
-          "temperature": 0.2
+          }
         }
       },
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.1,
       "position": [
-        2848,
-        3408
+        288,
+        1888
       ],
-      "id": "e37bd58a-9856-46d9-a6fa-477d836fd6ce",
+      "id": "698a603d-962d-4dcd-8988-0119b226dc73",
       "name": "Extract Customer Insights",
       "credentials": {
         "openAiApi": {
-          "id": "pDJOyVluHP4GnR2q",
-          "name": "OpenAi account"
+          "id": "tHpgI3q3z2juUPO5",
+          "name": "OpenAI account"
         }
       }
     },
@@ -220,15 +218,15 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "gpt-4.1-mini",
+          "value": "gpt-5.6-terra",
           "mode": "list",
-          "cachedResultName": "GPT-4.1-MINI"
+          "cachedResultName": "GPT-5.6-TERRA"
         },
         "responses": {
           "values": [
             {
               "role": "system",
-              "content": "Extract ZANE'S PERSONAL REFLECTIONS about himself and his business journey.\n\nPersonal reflections are moments where Zane:\n- Realizes something about himself: \"I'm not shallow, and that changes the game\"\n- Identifies an internal tension: \"I'm caught between integrity and survival anxiety\"\n- Has self-doubt: \"Maybe wanting depth is my downfall\"\n- Reframes his thinking: \"My dislike of voice AI is discernment, not resistance\"\n- Questions his approach: \"Am I avoiding something out of fear or values?\"\n- Recognizes patterns: \"I light up when building Mandy but dread selling voice bots\"\n\nDO NOT extract:\n- Business facts\n- Market observations\n- Things about customers\n- Strategic insights (those go in strategic_insights)\n\nONLY extract moments of SELF-AWARENESS about Zane's:\n- Identity as a builder\n- Values and what matters to him\n- Internal struggles and tensions\n- Self-doubt or breakthroughs\n- Emotional patterns\n\nReturn JSON:\n{\n  \"reflections\": [\n    {\n      \"reflection_type\": \"self_doubt|insight|values_clarification|breakthrough|struggle\",\n      \"reflection\": \"Zane's actual realization (in his voice if possible)\",\n      \"topic\": \"depth_vs_speed|integrity|fear|motivation|identity|business_approach\",\n      \"emotional_tone\": \"uncertain|excited|frustrated|clear|relieved|struggling\"\n    }\n  ]\n}"
+              "content": "Extract ZANE'S PERSONAL REFLECTIONS about himself and his business journey.\n\nPersonal reflections are moments where Zane:\n- Realizes something about himself: \"I'm not shallow, and that changes the game\"\n- Identifies an internal tension: \"I'm caught between integrity and survival anxiety\"\n- Has self-doubt: \"Maybe wanting depth is my downfall\"\n- Reframes his thinking: \"My dislike of voice AI is discernment, not resistance\"\n- Questions his approach: \"Am I avoiding something out of fear or values?\"\n- Recognizes patterns: \"I light up when building Mandy but dread selling voice bots\"\n\nDO NOT extract:\n- Business facts\n- Market observations\n- Things about customers\n- Strategic insights (those go in strategic_insights)\n\nONLY extract moments of SELF-AWARENESS about Zane's:\n- Identity as a builder\n- Values and what matters to him\n- Internal struggles and tensions\n- Self-doubt or breakthroughs\n- Emotional patterns\n\nHARD LIMIT: at most 2 reflections per conversation, the most genuine/significant ones. Most conversations should produce 0-1 — an empty array is a good answer.\n\nReturn JSON:\n{\n  \"reflections\": [\n    {\n      \"reflection_type\": \"self_doubt|insight|values_clarification|breakthrough|struggle\",\n      \"reflection\": \"Zane's actual realization (in his voice if possible)\",\n      \"topic\": \"depth_vs_speed|integrity|fear|motivation|identity|business_approach\",\n      \"emotional_tone\": \"uncertain|excited|frustrated|clear|relieved|struggling\"\n    }\n  ]\n}"
             },
             {
               "content": "={{ $json.transcript }}"
@@ -241,22 +239,21 @@
             "textOptions": {
               "type": "json_object"
             }
-          },
-          "temperature": 0.3
+          }
         }
       },
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.1,
       "position": [
-        2848,
-        3600
+        288,
+        2080
       ],
-      "id": "644d0a45-1e55-4f66-ba97-6a65b072badf",
+      "id": "a9b08fff-103e-470d-91fe-0ddd9b970b81",
       "name": "Extract Personal Reflections",
       "credentials": {
         "openAiApi": {
-          "id": "pDJOyVluHP4GnR2q",
-          "name": "OpenAi account"
+          "id": "tHpgI3q3z2juUPO5",
+          "name": "OpenAI account"
         }
       }
     },
@@ -264,15 +261,15 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "gpt-4.1-mini",
+          "value": "gpt-5.6-terra",
           "mode": "list",
-          "cachedResultName": "GPT-4.1-MINI"
+          "cachedResultName": "GPT-5.6-TERRA"
         },
         "responses": {
           "values": [
             {
               "role": "system",
-              "content": "Extract STRATEGIC INSIGHTS that connect patterns across Zane's journey.\n\nStrategic insights are META-OBSERVATIONS that:\n- Identify Zane's unique strengths or positioning\n- Reveal patterns in how he works or decides\n- Connect multiple data points from the conversation\n- Suggest market positioning or competitive advantage\n- Highlight risks or opportunities specific to him\n\nDO NOT extract:\n- General business advice\n- Obvious observations\n- Things that apply to everyone\n- Zane's own reflections (those go in personal_reflections)\n\nONLY extract insights that are:\n- Specific to Zane's situation\n- Connect multiple elements\n- Provide strategic direction\n- Come from synthesizing the conversation\n\nThese should feel like insights from a BUSINESS ADVISOR who knows Zane well.\n\nReturn JSON:\n{\n  \"insights\": [\n    {\n      \"insight_category\": \"business_model|positioning|market_fit|personal_growth\",\n      \"insight\": \"One clear sentence observation\",\n      \"supporting_evidence\": [\"quote or fact from conversation that supports this\"],\n      \"confidence\": \"high|medium|speculative\",\n      \"actionable\": true,\n      \"suggested_action\": \"what Zane could do with this insight\"\n    }\n  ]\n}"
+              "content": "Extract STRATEGIC INSIGHTS that connect patterns across Zane's journey.\n\nStrategic insights are META-OBSERVATIONS that:\n- Identify Zane's unique strengths or positioning\n- Reveal patterns in how he works or decides\n- Connect multiple data points from the conversation\n- Suggest market positioning or competitive advantage\n- Highlight risks or opportunities specific to him\n\nDO NOT extract:\n- General business advice\n- Obvious observations\n- Things that apply to everyone\n- Zane's own reflections (those go in personal_reflections)\n\nONLY extract insights that are:\n- Specific to Zane's situation\n- Connect multiple elements\n- Provide strategic direction\n- Come from synthesizing the conversation\n\nThese should feel like insights from a BUSINESS ADVISOR who knows Zane well.\n\nHARD LIMIT: at most 3 insights per conversation, the most valuable ones only. Most conversations should produce 0-2 — an empty array is a good answer.\n\nRate each insight's importance 1-5: 5 = changes how Zane should operate right now, 3 = useful and worth surfacing, 1 = minor/nice-to-know. Low-importance insights aren't wasted, they just won't be the first thing shown back to him.\n\nReturn JSON:\n{\n  \"insights\": [\n    {\n      \"insight_category\": \"business_model|positioning|market_fit|personal_growth\",\n      \"insight\": \"One clear sentence observation\",\n      \"supporting_evidence\": [\"quote or fact from conversation that supports this\"],\n      \"confidence\": \"high|medium|speculative\",\n      \"importance\": 3,\n      \"actionable\": true,\n      \"suggested_action\": \"what Zane could do with this insight\"\n    }\n  ]\n}"
             },
             {
               "content": "={{ $json.transcript }}"
@@ -285,22 +282,21 @@
             "textOptions": {
               "type": "json_object"
             }
-          },
-          "temperature": 0.4
+          }
         }
       },
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.1,
       "position": [
-        2848,
-        3792
+        288,
+        2272
       ],
-      "id": "56b74de8-4b3e-4b01-af41-be48e35a9498",
+      "id": "e80bda4d-7f36-4162-b577-c625bd0ed6f8",
       "name": "Extract Strategic Insights",
       "credentials": {
         "openAiApi": {
-          "id": "pDJOyVluHP4GnR2q",
-          "name": "OpenAi account"
+          "id": "tHpgI3q3z2juUPO5",
+          "name": "OpenAI account"
         }
       }
     },
@@ -308,9 +304,9 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "gpt-4.1-mini",
+          "value": "gpt-5.6-terra",
           "mode": "list",
-          "cachedResultName": "GPT-4.1-MINI"
+          "cachedResultName": "GPT-5.6-TERRA"
         },
         "responses": {
           "values": [
@@ -329,22 +325,21 @@
             "textOptions": {
               "type": "json_object"
             }
-          },
-          "temperature": 0.2
+          }
         }
       },
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.1,
       "position": [
-        2848,
-        3984
+        288,
+        2464
       ],
-      "id": "25381994-19d7-4bf9-a0cf-9b331976f9fb",
+      "id": "bcac44fa-bf3e-4613-9335-937f2ac5cf3a",
       "name": "Extract Action Items",
       "credentials": {
         "openAiApi": {
-          "id": "pDJOyVluHP4GnR2q",
-          "name": "OpenAi account"
+          "id": "tHpgI3q3z2juUPO5",
+          "name": "OpenAI account"
         }
       }
     },
@@ -352,9 +347,9 @@
       "parameters": {
         "modelId": {
           "__rl": true,
-          "value": "gpt-4.1-mini",
+          "value": "gpt-5.6-terra",
           "mode": "list",
-          "cachedResultName": "GPT-4.1-MINI"
+          "cachedResultName": "GPT-5.6-TERRA"
         },
         "responses": {
           "values": [
@@ -373,22 +368,21 @@
             "textOptions": {
               "type": "json_object"
             }
-          },
-          "temperature": 0.3
+          }
         }
       },
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2.1,
       "position": [
-        2848,
-        4176
+        288,
+        2656
       ],
-      "id": "904cdbc2-facd-4c72-8da4-3f1449c8b71e",
+      "id": "533c0c80-b67f-4f8d-8c56-480687ae9f0f",
       "name": "Conversation Theme Summary",
       "credentials": {
         "openAiApi": {
-          "id": "pDJOyVluHP4GnR2q",
-          "name": "OpenAi account"
+          "id": "tHpgI3q3z2juUPO5",
+          "name": "OpenAI account"
         }
       }
     },
@@ -421,15 +415,15 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        4224,
-        3600
+        1664,
+        2080
       ],
-      "id": "f340f0e3-5d9a-415a-af62-006d96ac498f",
+      "id": "fc5cda67-7835-4a9f-8da1-db2fb0b79bfa",
       "name": "Insert Embeddings",
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       }
     },
@@ -466,15 +460,15 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        4000,
-        3600
+        1440,
+        2080
       ],
-      "id": "f57bafea-5130-4876-91b4-8be1af3db0b0",
+      "id": "a8d14c3d-0e25-4282-b72c-3e5775897ead",
       "name": "Generate Embeddings",
       "credentials": {
         "openAiApi": {
-          "id": "pDJOyVluHP4GnR2q",
-          "name": "OpenAi account"
+          "id": "tHpgI3q3z2juUPO5",
+          "name": "OpenAI account"
         }
       }
     },
@@ -485,10 +479,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3632,
-        3600
+        1072,
+        2080
       ],
-      "id": "4b81a64c-5ab2-42bf-ae6d-8138f321f2c3",
+      "id": "9e7fef92-5d29-4b56-badd-cca9f2209a5d",
       "name": "Merge All Extractions"
     },
     {
@@ -498,23 +492,23 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4480,
-        3040
+        1920,
+        1520
       ],
-      "id": "7d366dde-17c4-409e-bbd7-59fe3430e538",
+      "id": "7c0cc730-cb2c-4698-8495-a80ccc27b5a8",
       "name": "Split Entities"
     },
     {
       "parameters": {
-        "jsCode": "const memoryId = $('Merge All Extractions').item.json.memory_id;\nconst decisions = $('Merge All Extractions').item.json.decisions || [];\n\nif (decisions.length === 0) {\n  return [{ json: { _skip: true, memory_id: memoryId } }];\n}\n\nreturn decisions.map(d => ({\n  json: {\n    memory_id: memoryId,\n    decision: d.decision,\n    category: d.category,\n    reasoning: d.reasoning,\n    alternatives_considered: JSON.stringify(d.alternatives_considered || []),\n    confidence_level: d.confidence_level,\n    emotional_context: d.emotional_context\n  }\n}));"
+        "jsCode": "const memoryId = $('Merge All Extractions').item.json.memory_id;\nconst decisions = $('Merge All Extractions').item.json.decisions || [];\n\nif (decisions.length === 0) {\n  return [{ json: { _skip: true, memory_id: memoryId } }];\n}\n\nreturn decisions.map(d => {\n  const days = d.suggested_review_days || 14;\n  const reviewAfter = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);\n  return {\n    json: {\n      memory_id: memoryId,\n      decision: d.decision,\n      category: d.category,\n      reasoning: d.reasoning,\n      alternatives_considered: JSON.stringify(d.alternatives_considered || []),\n      confidence_level: d.confidence_level,\n      emotional_context: d.emotional_context,\n      review_after: reviewAfter\n    }\n  };\n});"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4480,
-        3232
+        1920,
+        1712
       ],
-      "id": "6a033e49-0e7f-4323-a7b8-e237ab8476b7",
+      "id": "a1b25bc0-e372-49be-b057-d8b8043d8b23",
       "name": "Split Decisions"
     },
     {
@@ -553,6 +547,10 @@
             {
               "fieldId": "created_at",
               "fieldValue": "={{ new Date().toISOString() }}"
+            },
+            {
+              "fieldId": "review_after",
+              "fieldValue": "={{ $json.review_after }}"
             }
           ]
         }
@@ -560,15 +558,15 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        5136,
-        3232
+        2576,
+        1712
       ],
-      "id": "ddf52476-9fc4-4fc7-bfbd-721c984ce497",
+      "id": "fee21c2c-e9f4-4631-941c-ccddbdcda0e1",
       "name": "Insert Decisions",
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       },
       "continueOnFail": true
@@ -580,10 +578,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4480,
-        3424
+        1920,
+        1904
       ],
-      "id": "3afd7d3a-a04d-48e6-b36d-d7d00d405227",
+      "id": "c460c3d4-3d0e-4fe8-9f37-7cac0fd1e15b",
       "name": "Split Customer Insights"
     },
     {
@@ -633,15 +631,15 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        5136,
-        3424
+        2576,
+        1904
       ],
-      "id": "65c8e70e-4e48-4e4b-9ed1-b4ecfca3a10b",
+      "id": "31e8a3c4-8cb4-4702-982b-c913aebfdd40",
       "name": "Insert Customer Insights",
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       },
       "continueOnFail": true
@@ -653,10 +651,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4480,
-        3616
+        1920,
+        2096
       ],
-      "id": "81df33a7-ee71-4b76-b140-86f94fc7e387",
+      "id": "e753a79b-b7e5-4b3e-a3f6-608ebf27a3b6",
       "name": "Split Reflections"
     },
     {
@@ -694,15 +692,15 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        5136,
-        3616
+        2576,
+        2096
       ],
-      "id": "b45a32c8-14d6-4d89-ade7-a99fce2db48b",
+      "id": "755c8cbc-2f81-4633-b880-eaa18718541a",
       "name": "Insert Reflections",
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       },
       "continueOnFail": true
@@ -736,29 +734,29 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        5568,
-        3616
+        3008,
+        2096
       ],
-      "id": "798217f8-41e9-469f-8774-0b64ed57c67e",
+      "id": "60ded63a-9a6f-4077-93cd-b0e265422d3d",
       "name": "Update Memory Status",
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const memoryId = $('Merge All Extractions').item.json.memory_id;\nconst strategic = $('Merge All Extractions').item.json.strategic || [];\n\nif (strategic.length === 0) {\n  return [{ json: { _skip: true, memory_id: memoryId } }];\n}\n\nreturn strategic.map(s => ({\n  json: {\n    memory_id: memoryId,\n    insight_category: s.insight_category,\n    insight: s.insight,\n    supporting_evidence: JSON.stringify(s.supporting_evidence || []),\n    confidence: s.confidence,\n    actionable: s.actionable,\n    suggested_action: s.suggested_action\n  }\n}));"
+        "jsCode": "const memoryId = $('Merge All Extractions').item.json.memory_id;\nconst strategic = $('Merge All Extractions').item.json.strategic || [];\n\nif (strategic.length === 0) {\n  return [{ json: { _skip: true, memory_id: memoryId } }];\n}\n\nreturn strategic.map(s => ({\n  json: {\n    memory_id: memoryId,\n    insight_category: s.insight_category,\n    insight: s.insight,\n    supporting_evidence: JSON.stringify(s.supporting_evidence || []),\n    confidence: s.confidence,\n    importance: s.importance || null,\n    actionable: s.actionable,\n    suggested_action: s.suggested_action\n  }\n}));"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4480,
-        3808
+        1920,
+        2288
       ],
-      "id": "55166974-421b-45fb-81ce-f6cbe152642b",
+      "id": "9d3eb2d6-fee4-406f-8731-36d0ba7970ac",
       "name": "Split Strategic"
     },
     {
@@ -791,6 +789,10 @@
               "fieldValue": "={{ $json.confidence }}"
             },
             {
+              "fieldId": "importance",
+              "fieldValue": "={{ $json.importance }}"
+            },
+            {
               "fieldId": "actionable",
               "fieldValue": "={{ $json.actionable }}"
             },
@@ -804,15 +806,15 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        5136,
-        3808
+        2576,
+        2288
       ],
-      "id": "baf60b5f-fce6-4388-b0e8-bb52b3eb03cc",
+      "id": "cfe67945-6096-4f03-a78f-31269d62f276",
       "name": "Insert Strategic",
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       },
       "continueOnFail": true
@@ -824,10 +826,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4480,
-        4000
+        1920,
+        2480
       ],
-      "id": "13f76308-286a-4916-a538-3a799cb184c4",
+      "id": "38d87767-f972-4624-a44f-2f73cd07dc7c",
       "name": "Split Tasks"
     },
     {
@@ -889,15 +891,15 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        5136,
-        4000
+        2672,
+        2544
       ],
-      "id": "ccc9fc78-b313-4ff0-904c-d246dd4c2308",
+      "id": "d3009f6a-d72f-4313-abb3-c8c4ae33c68d",
       "name": "Insert Tasks",
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       },
       "continueOnFail": true
@@ -957,59 +959,42 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        5136,
-        4192
+        2576,
+        2912
       ],
-      "id": "1ab3943c-8a4a-4947-bf41-d9d28f4a2875",
+      "id": "bb619ddc-84e9-427d-ae23-4c00b680040d",
       "name": "Insert Theme",
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       },
       "continueOnFail": true
     },
     {
       "parameters": {
-        "tableId": "entities",
-        "fieldsUi": {
-          "fieldValues": [
-            {
-              "fieldId": "memory_id",
-              "fieldValue": "={{ $json.memory_id }}"
-            },
-            {
-              "fieldId": "entity_type",
-              "fieldValue": "={{ $json.entity_type }}"
-            },
-            {
-              "fieldId": "entity_name",
-              "fieldValue": "={{ $json.entity_name }}"
-            },
-            {
-              "fieldId": "context",
-              "fieldValue": "={{ $json.context }}"
-            },
-            {
-              "fieldId": "created_at",
-              "fieldValue": "={{ new Date().toISOString() }}"
-            }
-          ]
-        }
+        "method": "POST",
+        "url": "https://erwxszdcisyuyjmefvbj.supabase.co/rest/v1/rpc/agent_ingest_entity",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_memory_id: $json.memory_id, p_entity_type: $json.entity_type, p_entity_name: $json.entity_name, p_context: $json.context }) }}",
+        "options": {}
       },
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
       "position": [
-        5136,
-        3040
+        2576,
+        1520
       ],
-      "id": "66a74d6b-5885-46bc-ac6e-3994974b5f2d",
+      "id": "50cf8ebf-d6a1-41a1-8650-6389d9fd27c5",
       "name": "Insert Entities",
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       },
       "continueOnFail": true
@@ -1042,10 +1027,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        4688,
-        3040
+        2128,
+        1520
       ],
-      "id": "7867a056-0b58-41a2-a066-0e825157e2ce",
+      "id": "3d3cd74c-6393-464c-9b88-f65ef3a6c584",
       "name": "If"
     },
     {
@@ -1076,10 +1061,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        4688,
-        3232
+        2128,
+        1712
       ],
-      "id": "00fe3a8d-2b90-4449-a72d-9286aa22b6f9",
+      "id": "8072c254-d944-4be6-b506-781a4467c7f7",
       "name": "If1"
     },
     {
@@ -1110,10 +1095,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        4688,
-        3424
+        2128,
+        1904
       ],
-      "id": "dfb222e0-eb5c-4936-8ea9-a341c238fc18",
+      "id": "9b148973-48ff-4d82-bbc2-b000abdec2db",
       "name": "If2"
     },
     {
@@ -1144,10 +1129,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        4688,
-        3616
+        2128,
+        2096
       ],
-      "id": "c38d4bac-69cf-4db5-b46f-c266d9a955ae",
+      "id": "bec95d91-ab3c-475c-98c5-d99f73661b3e",
       "name": "If3"
     },
     {
@@ -1178,10 +1163,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        4688,
-        3808
+        2128,
+        2288
       ],
-      "id": "424eed01-9d34-4345-ad93-cad848438e2a",
+      "id": "2d373171-3cf1-4346-a746-c20d0458e58f",
       "name": "If4"
     },
     {
@@ -1212,10 +1197,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        4688,
-        4000
+        2080,
+        2544
       ],
-      "id": "95819d74-ca60-4f65-8d47-6d0eccbf05ca",
+      "id": "7678b802-6b42-447b-9d91-6d611a98f338",
       "name": "If5"
     },
     {
@@ -1246,10 +1231,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        4688,
-        4192
+        2128,
+        2912
       ],
-      "id": "817b3c3f-b0b0-4325-8f12-470ea26228b6",
+      "id": "fa8018b2-d7ea-4c71-bfc2-0a24c401aef8",
       "name": "If6"
     },
     {
@@ -1259,10 +1244,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3808,
-        3600
+        1248,
+        2080
       ],
-      "id": "fe6e6c47-01d8-4900-a023-c3aa20155c2a",
+      "id": "5873c2a4-778b-4dfb-a340-90fb27ef14f5",
       "name": "Prepare Theme for Embedding"
     },
     {
@@ -1274,10 +1259,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        2016,
-        4400
+        -544,
+        2880
       ],
-      "id": "f1a2b3c4-d5e6-4789-9abc-def012345678",
+      "id": "d52da85c-ed79-40be-964e-eaa0a72718e1",
       "name": "Webhook Pending",
       "webhookId": "f1a2b3c4-d5e6-4789-9abc-def012345679"
     },
@@ -1310,15 +1295,15 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        2240,
-        4400
+        -320,
+        2880
       ],
-      "id": "a2b3c4d5-e6f7-4890-abcd-ef0123456789",
+      "id": "7d70c88e-a680-45f2-912b-e8cadfb32031",
       "name": "Update Memory To Extracting",
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       }
     },
@@ -1336,15 +1321,15 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        4880,
-        3920
+        2240,
+        2656
       ],
-      "id": "a1b2c3d4-1111-4222-8333-444455556666",
+      "id": "9477db43-4429-4871-9925-5b271947eb15",
       "name": "Check For Duplicate Task",
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       }
     },
@@ -1376,10 +1361,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        5008,
-        3920
+        2432,
+        2656
       ],
-      "id": "c3d4e5f6-3333-4444-a555-666677778888",
+      "id": "619e97b6-87e3-4e8d-963b-ab30125c6b14",
       "name": "If Duplicate Found"
     }
   ],
@@ -1675,11 +1660,6 @@
         ]
       ]
     },
-    "Update Memory Status": {
-      "main": [
-        []
-      ]
-    },
     "Split Strategic": {
       "main": [
         [
@@ -1920,40 +1900,79 @@
   "pinData": {
     "Webhook": [
       {
-        "headers": {
-          "host": "n8n-service-8act.onrender.com",
-          "user-agent": "python-requests/2.32.5",
-          "content-length": "6442",
-          "accept": "*/*",
-          "accept-encoding": "gzip, br",
-          "cdn-loop": "cloudflare; loops=1",
-          "cf-connecting-ip": "118.149.96.202",
-          "cf-ipcountry": "NZ",
-          "cf-ray": "9c01c8a62d1650ae-AKL",
-          "cf-visitor": "{\"scheme\":\"https\"}",
-          "content-type": "application/json",
-          "render-proxy-ttl": "4",
-          "rndr-id": "adf25443-2bd8-41ca",
-          "true-client-ip": "118.149.96.202",
-          "x-forwarded-for": "118.149.96.202, 104.23.198.39",
-          "x-forwarded-proto": "https",
-          "x-request-start": "1768778016027131"
+        "json": {
+          "headers": {
+            "host": "n8n-service-8act.onrender.com",
+            "user-agent": "python-requests/2.32.5",
+            "content-length": "6442",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1",
+            "cf-connecting-ip": "118.149.96.202",
+            "cf-ipcountry": "NZ",
+            "cf-ray": "9c01c8a62d1650ae-AKL",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "content-type": "application/json",
+            "render-proxy-ttl": "4",
+            "rndr-id": "adf25443-2bd8-41ca",
+            "true-client-ip": "118.149.96.202",
+            "x-forwarded-for": "118.149.96.202, 104.23.198.39",
+            "x-forwarded-proto": "https",
+            "x-request-start": "1768778016027131"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "title": "Exciting AI Chatbot Demo for Green Machine",
+            "created_at": "2025-05-08T01:24:10.648373Z",
+            "transcript": "USER: Hey can you tailor this email to be bit more exciting and brief?\n\nHey Green Machine team,\nHope you're having a great week!\nJust wanted to follow up on my last email and share something exciting—we've got your custom AI chatbot up and running in demo form!",
+            "conversation_id": "34041eea-5d60-4144-98c3-8e425a99cf0e"
+          },
+          "webhookUrl": "https://n8n-service-8act.onrender.com/webhook/ingest-conversation",
+          "executionMode": "production"
+        }
+      }
+    ],
+    "Webhook Pending": [
+      {
+        "json": {
+          "headers": {
+            "host": "n8n-latest-rllq.onrender.com",
+            "user-agent": "n8n",
+            "content-length": "3315",
+            "accept": "application/json,text/html,application/xhtml+xml,application/xml,text/*;q=0.9, */*;q=0.1",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1",
+            "cf-connecting-ip": "74.220.52.3",
+            "cf-ipcountry": "SG",
+            "cf-ray": "a19a6b4a89c6fd31-SIN",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "content-type": "application/json",
+            "render-proxy-ttl": "4",
+            "rndr-id": "b9bafc6e-9b8e-4218",
+            "true-client-ip": "74.220.52.3",
+            "x-forwarded-for": "74.220.52.3, 162.158.108.107",
+            "x-forwarded-proto": "https",
+            "x-request-start": "1783800285868155"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "memory_id": 17,
+            "transcript": "So today I started exploring setting up an actual MCP server, which is the Case Command Center...",
+            "title": "Memory 17",
+            "source": "shortcut_voice"
+          },
+          "webhookUrl": "https://n8n-latest-rllq.onrender.com/webhook/ingest-pending",
+          "executionMode": "production"
         },
-        "params": {},
-        "query": {},
-        "body": {
-          "title": "Exciting AI Chatbot Demo for Green Machine",
-          "created_at": "2025-05-08T01:24:10.648373Z",
-          "transcript": "USER: Hey can you tailor this email to be bit more exciting and brief?\n\nHey Green Machine team,\nHope you’re having a great week!\nJust wanted to follow up on my last email and share something exciting—we’ve got your custom AI chatbot up and running in demo form!\nYou can check it out here: https://customaisolutions.app.n8n.cloud/webhook/304b5379-24ca-44f8-9848-bf4313c7ebb4/chat\nIt’s designed to handle common customer questions, help users find the right plants, and free up your team’s time—while keeping that friendly, helpful Green Machine tone. The current version is using a basic knowledge base, so we’d love your input to fine-tune it and add anything you’d like it to know.\nThe AI chatbot can easily be embedded into your website with just a simple script. You’ll have full control over its appearance and functionality, so it can blend seamlessly with your site’s design. Whether it's tweaking colors, fonts, or the chat window’s position, you can make it look and feel exactly like the chatbot we have on our own website—tailored to match your brand and specific needs.\nHere are a few trickier questions you can try out to test it:\n* “What’s a good native plant for a windy coastal site?”\n* “Do you have any fast-growing groundcovers for shade?”\nLet me know what you think!\nCheers, Zane Custom AI Solutions customaisolutions.nz\n\nCLAUDE: I'd be happy to make this email more exciting and brief. Here's a revised version:\n\nSubject: Your Green Machine AI Chatbot is LIVE! 🌱\n\nHi Green Machine team!\n\nGreat news – your custom AI chatbot is ready for test drives!\n\n➡️ Try it now: https://customaisolutions.app.n8n.cloud/webhook/304b5379-24ca-44f8-9848-bf4313c7ebb4/chat\n\nThis smart assistant handles customer FAQs, helps match shoppers with perfect plants, and frees up your team—all while maintaining that signature Green Machine personality!\n\nThe bot integrates seamlessly into your website with one simple script. You'll have complete control over its look and feel to match your branding perfectly.\n\nChallenge it with questions like:\n• \"What's a good native plant for a windy coastal site?\"\n• \"Do you have fast-growing groundcovers for shade?\"\n\nWhat do you think? We'd love your feedback to make it even smarter!\n\nCheers,\nZane\nCustom AI Solutions\ncustomaisolutions.nz\n\nUSER: Could we add a piece where we express that we can give the AI agent behind the chat bot tools to increase functionality and customise it to work with their business and automate the boring stuff\n\nCLAUDE: Here's the updated email with the added information about AI tools and automation:\n\nSubject: Your Green Machine AI Chatbot is LIVE! 🌱\n\nHi Green Machine team!\n\nGreat news – your custom AI chatbot is ready for test drives!\n\n➡️ Try it now: https://customaisolutions.app.n8n.cloud/webhook/304b5379-24ca-44f8-9848-bf4313c7ebb4/chat\n\nThis smart assistant handles customer FAQs, helps match shoppers with perfect plants, and frees up your team—all while maintaining that signature Green Machine personality!\n\nThe real power? We can equip your AI with specialized tools to automate your business processes! From checking inventory and processing orders to scheduling deliveries and managing customer accounts—your chatbot can handle the tedious tasks so your team can focus on what they do best.\n\nThe bot integrates seamlessly into your website with one simple script. You'll have complete control over its look and feel to match your branding perfectly.\n\nChallenge it with questions like:\n• \"What's a good native plant for a windy coastal site?\"\n• \"Do you have fast-growing groundcovers for shade?\"\n\nWhat do you think? We'd love your feedback to make it even smarter!\n\nCheers,\nZane\nCustom AI Solutions\ncustomaisolutions.nz\n\nUSER: Can we just keep it really brief that in future we could look into adding these tools and functionality\n\nCLAUDE: Here's the updated email with a briefer mention of future tools and functionality:\n\nSubject: Your Green Machine AI Chatbot is LIVE! 🌱\n\nHi Green Machine team!\n\nGreat news – your custom AI chatbot is ready for test drives!\n\n➡️ Try it now: https://customaisolutions.app.n8n.cloud/webhook/304b5379-24ca-44f8-9848-bf4313c7ebb4/chat\n\nThis smart assistant handles customer FAQs, helps match shoppers with perfect plants, and frees up your team—all while maintaining that signature Green Machine personality!\n\nThe bot integrates seamlessly into your website with one simple script, with full control over its appearance to match your branding.\n\nPlus, we can explore adding tools later that let your AI automate inventory checks, orders, and other routine tasks!\n\nChallenge it with questions like:\n• \"What's a good native plant for a windy coastal site?\"\n• \"Do you have fast-growing groundcovers for shade?\"\n\nWhat do you think? We'd love your feedback!\n\nCheers,\nZane\nCustom AI Solutions\ncustomaisolutions.nz\n\nUSER: Can we make the link different text?\n\nCLAUDE: Here's the updated email with different text for the link:\n\nSubject: Your Green Machine AI Chatbot is LIVE! 🌱\n\nHi Green Machine team!\n\nGreat news – your custom AI chatbot is ready for test drives!\n\n➡️ [Take it for a spin here!](https://customaisolutions.app.n8n.cloud/webhook/304b5379-24ca-44f8-9848-bf4313c7ebb4/chat)\n\nThis smart assistant handles customer FAQs, helps match shoppers with perfect plants, and frees up your team—all while maintaining that signature Green Machine personality!\n\nThe bot integrates seamlessly into your website with one simple script, with full control over its appearance to match your branding.\n\nPlus, we can explore adding tools later that let your AI automate inventory checks, orders, and other routine tasks!\n\nChallenge it with questions like:\n• \"What's a good native plant for a windy coastal site?\"\n• \"Do you have fast-growing groundcovers for shade?\"\n\nWhat do you think? We'd love your feedback!\n\nCheers,\nZane\nCustom AI Solutions\ncustomaisolutions.nz",
-          "conversation_id": "34041eea-5d60-4144-98c3-8e425a99cf0e"
-        },
-        "webhookUrl": "https://n8n-service-8act.onrender.com/webhook/ingest-conversation",
-        "executionMode": "production"
+        "pairedItem": {
+          "item": 0
+        }
       }
     ]
   },
   "meta": {
-    "templateCredsSetupCompleted": true,
-    "instanceId": "cc5c207f30420397d72654602d23c6e46b37dbe3ec8fdea2f1f84f2b3c8281fa"
+    "templateCredsSetupCompleted": true
   }
 }

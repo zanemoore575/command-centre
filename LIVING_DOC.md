@@ -1,6 +1,6 @@
 # Command Centre — Living Project Status
 
-Updated: 2026-07-16 (Wave 1 built: current-truth layer + decision outcome loop — see changelog; migrations pending a live-DB run)
+Updated: 2026-07-16 (Wave 2 built: extraction discipline + entity resolution — see changelog. Wave 1 — current-truth layer + decision outcome loop — is live and confirmed working.)
 
 ## What this system is now
 
@@ -44,30 +44,46 @@ iOS voice notes ─────────┘   extraction + embeddings     ent
   `zanemoore575/cais-command-centre` (private)
 - **n8n:** `https://n8n-latest-rllq.onrender.com` — ingest workflow + pending
   poller + voice-note webhook + daily brief are the load-bearing workflows
-- **MCP tools (22):** discover_database, get_current_state, get_tasks,
+- **MCP tools (24):** discover_database, get_current_state, get_tasks,
   get_recent_memories, search_memories, search_entities, get_memory,
   get_decisions, get_decisions_due_for_review, get_reflections,
   get_strategic_insights, get_customer_insights, log_memory,
   update_current_state, record_decision_outcome, create_task, complete_task,
   update_task, merge_tasks, archive_task, promote_task, snooze_task,
-  save_artifact, search_artifacts, get_artifact
+  save_artifact, search_artifacts, get_artifact,
+  get_entity_matches_due_for_review, resolve_entity_match
 - **Live check-in page:** served by the MCP server at `/checkin?token=…`
-  (token-gated, rendered from live data on every load; complete/snooze/dismiss
-  and decision-review buttons write back through the agent_* RPCs)
+  (token-gated, rendered from live data on every load; complete/snooze/dismiss,
+  decision-review, and entity-match-review buttons write back through the
+  agent_* RPCs)
 - **Current-truth layer:** `current_state` table — one canonical row per topic,
-  overwritten (not appended) on supersession. **Not yet seeded or confirmed
-  live** — migration written 2026-07-16, awaiting a Supabase SQL Editor run.
+  overwritten (not appended) on supersession. Live and confirmed working
+  (`current_state_migration.sql`, run 2026-07-16).
 - **Decision outcome loop:** `decisions` gained outcome tracking columns +
   a "due for review" selector surfaced on the check-in page and in the 6am
-  brief. Same pending-migration caveat as above.
+  brief. Live and confirmed working (`decision_outcomes_migration.sql`).
+- **Entity resolution (new 2026-07-16, Wave 2):** `canonical_entities` +
+  `entity_match_review` tables (`entity_resolution_migration.sql`) — every
+  entity extracted by the Ingest workflow now goes through `agent_ingest_entity`
+  instead of a direct insert: exact/near-exact names auto-merge silently
+  (score ≥ 0.90 via pg_trgm), genuinely ambiguous ones (0.35–0.90, e.g. "Jake"
+  vs "Jake Shirley") stand alone and get flagged on the check-in page for a
+  yes/no, anything below 0.35 is just a new entity. `search_entities` and
+  `get_customer_insights` resolve through the canonical registry + aliases.
+  One-off backfill of the pre-Wave-2 flood (`Workflows/backfill_canonical_entities.py`):
+  4,334 entity rows → 1,073 canonical entities across person/company/project/tool
+  (`concept`-type rows deliberately left alone — themes cover them), 426 ambiguous
+  groups queued for Zane's review, surfacing a few at a time by confidence.
 
-## Live data snapshot (2026-07-11)
+## Live data snapshot (2026-07-11, except rows marked 07-16 below)
 
 | Table | Rows | Notes |
 |---|---|---|
 | memories | 442 | Apr 2025 → today; 303 claude_conversation, 65 shortcut_voice, 53 claude_task_creation, 13 artifact |
 | tasks | 1,391 | **1,281 open** — see task-flood issue below |
-| entities | 3,548 | 140 people, 221 companies, 433 projects, 237 tools |
+| entities | 4,334 *(07-16)* | 3,008 rows now canonicalized (249 tool / 144 person / 213 company / 467 project canonical entities); 1,249 `concept`-type rows deliberately left uncanonicalized; 151 banned "Zane" rows deleted |
+| canonical_entities | 1,073 *(07-16, new)* | one row per distinct person/company/project/tool; `aliases` holds every surface form that resolved to it |
+| entity_match_review | 426 pending *(07-16, new)* | ambiguous historical matches (e.g. "Jake" vs "Jake Shirley") awaiting a yes/no on the check-in page, surfaced highest-confidence first |
 | decisions | 1,152 | |
 | reflections | 1,561 | |
 | strategic_insights | 1,655 | |
@@ -147,20 +163,54 @@ Three layers, all coded and verified — manual go-live steps in `SETUP_CHECKIN_
 
 ## Current priorities
 
-1. **Run the two Wave 1 migrations** (`Workflows/current_state_migration.sql`,
-   `Workflows/decision_outcomes_migration.sql`) in the Supabase SQL Editor on
-   `erwxszdcisyuyjmefvbj` — Claude Code has no DDL credentials for this project
-   (only REST/service-key access), so this step needs Zane. Once run: seed
-   `current_state` (~15–25 topics from the last ~60 days of memories) and
-   verify end-to-end.
-2. **Go-live checklist in `SETUP_CHECKIN_BRIEF.md`** — Supabase migration,
+1. **Go-live checklist in `SETUP_CHECKIN_BRIEF.md`** — Supabase migration,
    Render env + deploy, custom domain, n8n imports, new Telegram bot.
-3. Re-drive the 62 stuck/invisible memories and align on one terminal status
+2. Re-drive the 62 stuck/invisible memories and align on one terminal status
    (`completed`) so recall sees everything.
-4. Re-authorize the claude.ai MCP connector (and Gmail/Calendar connectors).
+3. Re-authorize the claude.ai MCP connector (and Gmail/Calendar connectors).
+4. Work through the 426 pending `entity_match_review` rows on the check-in
+   page as they surface (highest-confidence first) — no rush, they're historical
+   backfill, not blocking anything.
 5. Keep this doc updated with each progress change.
 
 ## Changelog
+
+### 2026-07-16 — Wave 2: extraction discipline + entity resolution
+- **Tightened the 4 extraction prompts** in the live Ingest workflow: Entities
+  capped 15-25 → 8, `concept` type killed (themes cover it), canonical-name
+  rules (fullest name once, no possessive/slash-compound phrases); Decisions
+  capped → 3 + `suggested_review_days` (feeds `review_after`); Strategic
+  Insights capped → 3 + `importance` (1-5, sorts the read tool now);
+  Reflections capped → 2.
+- **Live entity-matching loop**: `canonical_entities` + `entity_match_review`
+  tables, `agent_ingest_entity` RPC (replaces the direct "Insert Entities"
+  write in n8n — now an HTTP call to the RPC). pg_trgm-based scoring:
+  ≥0.90 auto-merges silently, 0.35-0.90 stays a separate canonical + queues a
+  check-in-page question ("You mentioned 'Jake' — same as 'Jake Shirley'?"),
+  below 0.35 is just a new entity. New MCP tools
+  `get_entity_matches_due_for_review` / `resolve_entity_match`; new "Entity
+  match review" card on the check-in page (confirm/reject + optional note).
+  `search_entities`/`get_customer_insights` now resolve through the canonical
+  registry + aliases instead of raw `ILIKE`.
+- **One-off backfill** (`Workflows/backfill_canonical_entities.py`): reuses
+  the live `agent_best_canonical_match` RPC rather than a second heuristic
+  (an early difflib-based version flagged ~1,035 of 3,005 rows for review —
+  character-ratio similarity is noisy on short strings; pg_trgm cut that to a
+  sane number). 4,334 entity rows → 1,073 canonicals across
+  person/company/project/tool, 426 ambiguous groups queued for review,
+  151 banned "Zane" rows deleted, `concept`-type rows (1,249) deliberately
+  left alone.
+- Found and fixed during verification (all three required a live-DB hotfix
+  after the initial migration): an `agent_resolve_entity_match` output
+  parameter named `canonical_id` shadowed the `entities.canonical_id` column
+  reference inside the function; a FK-ordering bug where deleting a merged
+  candidate canonical failed because `entity_match_review` still referenced
+  it; and `agent_get_entity_details`/`search_entities` could completely hide
+  a real but rarely-mentioned canonical (e.g. "Jake Murray") behind a
+  dominant one ("Jake" at 111 mentions) under a flat `LIMIT 40` — fixed by
+  capping results per matched canonical instead.
+- Migration file: `Workflows/entity_resolution_migration.sql` (includes all
+  three post-review fixes inline — reflects final state, not the history).
 
 ### 2026-07-16 — Wave 1: current-truth layer + decision outcome loop
 - `current_state` table + `get_current_state`/`update_current_state` MCP tools —

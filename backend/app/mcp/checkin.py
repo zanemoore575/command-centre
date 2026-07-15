@@ -143,6 +143,10 @@ def _fetch():
         decisions_due = _rpc("agent_get_decisions_due_for_review", {"limit_count": 2})
     except httpx.HTTPStatusError:
         decisions_due = []  # decision_outcomes_migration.sql not applied yet
+    try:
+        entity_matches_due = _rpc("agent_get_entity_matches_due_for_review", {"limit_count": 3})
+    except httpx.HTTPStatusError:
+        entity_matches_due = []  # entity_resolution_migration.sql not applied yet
 
     return {
         "now": now, "today": today,
@@ -153,6 +157,7 @@ def _fetch():
         "mem_week": sum(1 for m in mem_meta if m["created_at"] >= week_ago),
         "recent": recent,
         "decisions_due": decisions_due,
+        "entity_matches_due": entity_matches_due,
     }
 
 
@@ -212,6 +217,21 @@ def _decision_row(dec, today) -> str:
             f'</div></div>')
 
 
+def _entity_match_row(m, today) -> str:
+    mid = esc(m["match_id"])
+    seen = _days_ago(m.get("created_date") or "2026-01-01", today)
+    meta = f'seen {seen} · {int(round((m.get("similarity") or 0) * 100))}% match'
+    return (f'<div class="decision" id="entity-match-{mid}">'
+            f'<div class="decision-top"><span class="meta">{meta}</span></div>'
+            f'<div class="decision-body"><p class="decision-text">You mentioned '
+            f'“{esc(m["candidate_name"])}” — is that the same as “{esc(m["suggested_name"])}”?</p></div>'
+            f'<textarea class="outcome-input" placeholder="Optional clarification — e.g. who this actually is" rows="2"></textarea>'
+            f'<div class="acts">'
+            f'<button class="act worked" data-action="review_entity_match" data-status="confirm" data-id="{mid}">Yes, same</button>'
+            f'<button class="act dismiss" data-action="review_entity_match" data-status="reject" data-id="{mid}">No, different</button>'
+            f'</div></div>')
+
+
 def _grouped(tasks, today) -> str:
     groups = {}
     for t in tasks:
@@ -245,6 +265,13 @@ def render_page(d) -> str:
         decision_review_html = (
             f'<section><div class="eyebrow">Decision review · '
             f'<span id="review-n">{len(d["decisions_due"])}</span> to close out</div>{rows}</section>')
+
+    entity_match_review_html = ""
+    if d["entity_matches_due"]:
+        rows = "\n".join(_entity_match_row(m, today) for m in d["entity_matches_due"])
+        entity_match_review_html = (
+            f'<section><div class="eyebrow">Entity match review · '
+            f'<span id="entity-review-n">{len(d["entity_matches_due"])}</span> to confirm</div>{rows}</section>')
 
     suggested_html = ""
     if d["suggested"]:
@@ -428,6 +455,8 @@ footer p {{ margin-bottom:4px; }}
 
   {decision_review_html}
 
+  {entity_match_review_html}
+
   <section>
     <div class="eyebrow">Coming up · {len(later)}</div>
     <details {"open" if len(later) <= 12 else ""}><summary>Show {len(later)} tasks with no near deadline</summary>
@@ -509,6 +538,32 @@ footer p {{ margin-bottom:4px; }}
         }})
         .catch(function (err) {{
           drow.querySelectorAll("button, textarea").forEach(function (b) {{ b.disabled = false; }});
+          toast("Couldn’t save: " + err.message);
+        }});
+      return;
+    }}
+
+    if (action === "review_entity_match") {{
+      var erow = document.getElementById("entity-match-" + btn.dataset.id);
+      var note = erow.querySelector(".outcome-input").value;
+      erow.querySelectorAll("button, textarea").forEach(function (b) {{ b.disabled = true; }});
+      fetch("checkin/action", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify({{
+          token: token, action: action, match_id: btn.dataset.id,
+          status: btn.dataset.status, note: note
+        }})
+      }}).then(function (r) {{ return r.json().then(function (j) {{ return {{ ok: r.ok, j: j }}; }}); }})
+        .then(function (res) {{
+          if (!res.ok) throw new Error(res.j.error || "failed");
+          erow.classList.add("gone");
+          setTimeout(function () {{ erow.remove(); }}, 320);
+          bump("entity-review-n", -1);
+          toast(btn.dataset.status === "confirm" ? "Merged — thanks for confirming" : "Kept separate — noted");
+        }})
+        .catch(function (err) {{
+          erow.querySelectorAll("button, textarea").forEach(function (b) {{ b.disabled = false; }});
           toast("Couldn’t save: " + err.message);
         }});
       return;
@@ -642,6 +697,30 @@ async def checkin_action(request: Request) -> Response:
         if not result:
             return JSONResponse({"error": "decision not found"}, status_code=404)
         return JSONResponse({"ok": True, "decision": result[0] if isinstance(result, list) else result})
+
+    # Confirm/reject an ambiguous entity match from the "Entity match review" card.
+    if action == "review_entity_match":
+        match_id = body.get("match_id", "")
+        status = body.get("status")
+        if not re.fullmatch(r"[0-9a-fA-F-]{36}", match_id):
+            return JSONResponse({"error": "bad match_id"}, status_code=400)
+        if status not in ("confirm", "reject"):
+            return JSONResponse({"error": "bad status"}, status_code=400)
+        try:
+            result = _rpc("agent_resolve_entity_match", {
+                "match_id": match_id,
+                "action": status,
+                "new_note": (body.get("note") or "").strip() or None,
+            })
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return JSONResponse(
+                    {"error": "agent_resolve_entity_match not found — run entity_resolution_migration.sql in Supabase first"},
+                    status_code=501)
+            return JSONResponse({"error": f"database error ({e.response.status_code})"}, status_code=502)
+        if not result:
+            return JSONResponse({"error": "match not found"}, status_code=404)
+        return JSONResponse({"ok": True, "match": result[0] if isinstance(result, list) else result})
 
     if action not in ACTIONS:
         return JSONResponse({"error": f"unknown action '{action}'"}, status_code=400)
