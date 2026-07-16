@@ -24,6 +24,14 @@
 --
 -- Requires pg_trgm (already enabled by task_writeback_migration.sql).
 -- Safe to re-run: IF NOT EXISTS / CREATE OR REPLACE / idempotent inserts.
+--
+-- FIX (2026-07-17): agent_resolve_entity_match's confirm branch deleted the
+-- losing candidate canonical without repointing entity_match_review rows that
+-- referenced it via suggested_canonical_id (only candidate_canonical_id was
+-- repointed) -> FK violation -> check-in page showed "409 (database error)"
+-- and the card could never be confirmed. Hit 104 of 423 pending rows live.
+-- Fixed by repointing suggested_canonical_id too, right before the DELETE.
+-- Just re-run this file (CREATE OR REPLACE) to pick up the fix.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -265,6 +273,16 @@ BEGIN
     UPDATE entity_match_review
     SET candidate_canonical_id = v_row.suggested_canonical_id
     WHERE candidate_canonical_id = v_row.candidate_canonical_id;
+
+    -- Also repoint any OTHER pending review row that suggested this same
+    -- candidate as ITS match target (e.g. two different mentions both got
+    -- ambiguously matched against the same not-yet-resolved candidate).
+    -- Without this, that row's suggested_canonical_id FK blocks the DELETE
+    -- below with a 409 (found 2026-07-16: 104 of 423 pending rows had this
+    -- shape, including the 3 top-of-queue cards Zane got stuck on).
+    UPDATE entity_match_review
+    SET suggested_canonical_id = v_row.suggested_canonical_id
+    WHERE suggested_canonical_id = v_row.candidate_canonical_id;
 
     DELETE FROM canonical_entities WHERE id = v_row.candidate_canonical_id;
 

@@ -383,7 +383,7 @@ details.task-x[open] > summary::after {{ content:"Show less"; }}
 .decision-text {{ font-size:14.5px; overflow-wrap:anywhere; }}
 .decision-reasoning {{ font-size:12.5px; color:var(--muted); margin-top:4px; }}
 .outcome-input {{ width:100%; margin-top:10px; padding:8px 10px; border:1px solid var(--line); border-radius:8px;
-  background:var(--bg); color:var(--ink); font:inherit; font-size:13px; resize:vertical; }}
+  background:var(--bg); color:var(--ink); font:inherit; font-size:16px; resize:vertical; }}
 .outcome-input:focus-visible {{ outline:2px solid var(--accent); outline-offset:1px; }}
 .act.worked {{ border-color:var(--good); color:var(--good); }}
 .act.worked:hover {{ background:var(--good-soft); }}
