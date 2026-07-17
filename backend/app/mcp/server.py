@@ -73,6 +73,7 @@ from app.mcp.supabase_tools import (
     tool_search_memories,
     tool_get_memory,
     tool_search_entities,
+    tool_get_context_brief,
     tool_get_decisions,
     tool_get_tasks,
     tool_archive_task,
@@ -263,11 +264,14 @@ def get_recent_memories(limit: int = 10, source: Optional[str] = None) -> list[d
 @mcp.tool()
 def search_memories(query: str, limit: int = 8) -> list[dict]:
     """
-    Search memories by keyword across titles, summaries, and themes.
-    Returns memories ranked by relevance.
+    Hybrid memory search — semantic (meaning) + keyword, unioned and re-ranked.
+    Because it matches on meaning, a natural-language query finds relevant
+    memories even when they share no exact words with it. Each result is tagged
+    match_type ('semantic', 'keyword', or 'both').
 
     Args:
-        query: Search term (e.g. 'Jake', 'real estate', 'quoting').
+        query: A word, name, or full phrase (e.g. 'Jake', 'the funding runway
+            worry', 'why we paused the real-estate build').
         limit: Max results (default 8, max 20).
     """
     return tool_search_memories(query=query, limit=limit)
@@ -295,6 +299,24 @@ def search_entities(name: str) -> list[dict]:
         name: Name to search for (partial match, e.g. 'Jake', 'Core Finance').
     """
     return tool_search_entities(name=name)
+
+
+@mcp.tool()
+def get_context_brief(name: str) -> dict:
+    """
+    Pull everything you need before talking to or about someone — in one call.
+    Use this the moment Zane mentions a person, company, or project he's about
+    to meet, call, email, or discuss (e.g. "I've got a call with Jake"): it
+    resolves the entity through its aliases and returns their current-truth
+    topics, when he last spoke to them, open tasks involving them, recent
+    memories, recent decisions, and customer insights — instead of five separate
+    searches you have to stitch together yourself.
+
+    Args:
+        name: Person/company/project name (e.g. 'Jake', 'Core Finance',
+            'Greenmachine'). Partial match, resolved through canonical aliases.
+    """
+    return tool_get_context_brief(name=name)
 
 
 @mcp.tool()

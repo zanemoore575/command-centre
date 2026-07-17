@@ -68,14 +68,83 @@ def tool_get_recent_memories(limit: int = 10, source: Optional[str] = None) -> l
 
 def tool_search_memories(query: str, limit: int = 8) -> list[dict]:
     """
-    Keyword search across memory titles, summaries, and transcripts.
-    Returns memories ranked by relevance.
+    Hybrid recall: semantic (embedding) + keyword, unioned and re-ranked.
+
+    Semantic (agent_search_memories_by_embedding) catches memories with no
+    keyword overlap — the whole point of paying to embed every memory. Keyword
+    (agent_search_by_theme) keeps exact-term precision. If embedding is
+    unavailable (no OpenAI key, API error), degrades gracefully to keyword-only,
+    i.e. the previous behaviour — so search never hard-fails.
     """
-    result = _rpc("agent_search_by_theme", {
+    cap = min(limit, 20)
+    pool = max(cap * 2, 12)  # over-fetch each leg so the union has room to rank
+
+    keyword = _rpc("agent_search_by_theme", {
         "theme_keywords": query,
-        "limit_count": min(limit, 20),
+        "limit_count": pool,
     })
-    return result if isinstance(result, list) else []
+    keyword = keyword if isinstance(keyword, list) else []
+
+    # Semantic leg is best-effort — one embedding call, one RPC, both guarded.
+    semantic: list[dict] = []
+    try:
+        embedding = _embed_text(query)
+        if embedding is not None:
+            semantic = _rpc("agent_search_memories_by_embedding", {
+                "query_embedding": embedding,
+                "match_threshold": 0.35,
+                "match_count": pool,
+            })
+            semantic = semantic if isinstance(semantic, list) else []
+    except Exception:
+        semantic = []
+
+    # Merge by memory_id, keeping whichever leg has the richer fields.
+    merged: dict[int, dict] = {}
+    for r in keyword:
+        mid = r.get("memory_id")
+        if mid is None:
+            continue
+        merged[mid] = {
+            "memory_id": mid,
+            "title": r.get("title"),
+            "summary": r.get("summary"),
+            "main_theme": r.get("main_theme"),
+            "created_at": r.get("created_at"),
+            "keyword_score": r.get("relevance_score") or 0,
+            "similarity": None,
+            "match_type": "keyword",
+        }
+    for r in semantic:
+        mid = r.get("memory_id")
+        if mid is None:
+            continue
+        row = merged.get(mid)
+        if row is None:
+            merged[mid] = {
+                "memory_id": mid,
+                "title": r.get("title"),
+                "summary": r.get("summary"),
+                "main_theme": r.get("main_theme"),
+                "created_at": r.get("created_at"),
+                "keyword_score": 0,
+                "similarity": r.get("similarity"),
+                "match_type": "semantic",
+            }
+        else:
+            row["similarity"] = r.get("similarity")
+            row["match_type"] = "both"
+            row["summary"] = row.get("summary") or r.get("summary")
+            row["main_theme"] = row.get("main_theme") or r.get("main_theme")
+
+    # relevance_score maxes at 9 (3+2+2+1+1); normalise both legs to 0..1.
+    def _rank(row: dict) -> float:
+        sem = row.get("similarity") or 0.0
+        kw = (row.get("keyword_score") or 0) / 9.0
+        return 0.6 * sem + 0.4 * kw
+
+    ranked = sorted(merged.values(), key=_rank, reverse=True)
+    return ranked[:cap]
 
 
 def tool_get_memory(memory_id: int) -> dict | None:
@@ -90,6 +159,76 @@ def tool_search_entities(name: str) -> list[dict]:
     """Search for people, companies, projects, or tools by name."""
     result = _rpc("agent_get_entity_details", {"search_name": name})
     return result if isinstance(result, list) else []
+
+
+def _safe_list(fn) -> list:
+    """Run a read that returns a list; swallow any error into []."""
+    try:
+        out = fn()
+        return out if isinstance(out, list) else []
+    except Exception:
+        return []
+
+
+def tool_get_context_brief(name: str) -> dict:
+    """
+    One-call pre-contact brief for a person/company/project. Resolves the entity
+    (through canonical aliases) and composes everything you'd otherwise pull in
+    five separate calls: current-truth topics, last-contact date, open tasks,
+    recent memories, decisions, and customer insights touching them.
+    """
+    entity_rows = _safe_list(lambda: tool_search_entities(name))
+
+    # Distinct canonicals this name resolved to (e.g. "Jake" -> "Jake Shirley").
+    canonicals = sorted({r.get("canonical_name") for r in entity_rows if r.get("canonical_name")})
+
+    # Memories where this entity appears — dedupe, newest first, last_contact = latest.
+    seen: dict[int, dict] = {}
+    for r in entity_rows:
+        mid = r.get("memory_id")
+        if mid is None or mid in seen:
+            continue
+        seen[mid] = {
+            "memory_id": mid,
+            "title": r.get("memory_title"),
+            "date": r.get("memory_date"),
+            "context": r.get("context"),
+        }
+    recent_memories = sorted(seen.values(), key=lambda m: m.get("date") or "", reverse=True)
+    last_contact = recent_memories[0]["date"] if recent_memories else None
+
+    # Open tasks touching this entity. No entity filter on agent_get_tasks, so
+    # pull the open list and match client-side against name/text/context.
+    nl = name.lower()
+    all_open = _safe_list(lambda: tool_get_tasks(status="open", limit=200))
+    open_tasks = [
+        {
+            "task_id": t.get("task_id"),
+            "task": t.get("task_text"),
+            "urgency": t.get("urgency"),
+            "due_date": t.get("due_date"),
+            "category": t.get("category"),
+            "who": t.get("entity_name"),
+        }
+        for t in all_open
+        if any(nl in (t.get(f) or "").lower() for f in ("entity_name", "task_text", "context"))
+    ]
+
+    current_state = _safe_list(lambda: tool_get_current_state(topic=name))
+    decisions = _safe_list(lambda: tool_get_decisions(topic=name))
+    customer_insights = _safe_list(lambda: tool_get_customer_insights(customer=name))
+
+    return {
+        "name": name,
+        "canonical_names": canonicals,
+        "last_contact": last_contact,
+        "mention_count": len(entity_rows),
+        "current_state": current_state,
+        "open_tasks": open_tasks,
+        "recent_memories": recent_memories[:5],
+        "recent_decisions": decisions[:5],
+        "customer_insights": customer_insights[:5],
+    }
 
 
 def tool_get_decisions(topic: Optional[str] = None, days: int = 365) -> list[dict]:

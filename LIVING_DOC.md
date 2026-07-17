@@ -1,6 +1,6 @@
 # Command Centre — Living Project Status
 
-Updated: 2026-07-16 (Wave 2 built: extraction discipline + entity resolution — see changelog. Wave 1 — current-truth layer + decision outcome loop — is live and confirmed working.)
+Updated: 2026-07-17 (Wave 3 built: hybrid semantic recall, `get_context_brief` pre-call tool, weekly reconciliation workflow, calendar-aware daily brief — see changelog. Waves 1–2 live and confirmed working.)
 
 ## What this system is now
 
@@ -43,9 +43,11 @@ iOS voice notes ─────────┘   extraction + embeddings     ent
   root dir `backend`, start `python -m app.mcp.server`), GitHub repo
   `zanemoore575/cais-command-centre` (private)
 - **n8n:** `https://n8n-latest-rllq.onrender.com` — ingest workflow + pending
-  poller + voice-note webhook + daily brief are the load-bearing workflows
-- **MCP tools (24):** discover_database, get_current_state, get_tasks,
-  get_recent_memories, search_memories, search_entities, get_memory,
+  poller + voice-note webhook + daily brief are the load-bearing workflows;
+  weekly reconciliation (Wave 3c) is the newest, created inactive pending review
+- **MCP tools (28):** discover_database, get_current_state, get_tasks,
+  get_recent_memories, search_memories *(hybrid semantic+keyword, Wave 3a)*,
+  search_entities, get_context_brief *(Wave 3b)*, get_memory,
   get_decisions, get_decisions_due_for_review, get_reflections,
   get_strategic_insights, get_customer_insights, log_memory,
   update_current_state, record_decision_outcome, create_task, complete_task,
@@ -74,6 +76,31 @@ iOS voice notes ─────────┘   extraction + embeddings     ent
   4,334 entity rows → 1,073 canonical entities across person/company/project/tool
   (`concept`-type rows deliberately left alone — themes cover them), 426 ambiguous
   groups queued for Zane's review, surfacing a few at a time by confidence.
+- **Recall + proactive layer (new 2026-07-17, Wave 3):** four changes that make
+  the system reach out instead of only answering.
+  - *Hybrid recall (3a):* `search_memories` now unions semantic (the paid-for
+    embeddings, `agent_search_memories_by_embedding`) with the keyword RPC and
+    re-ranks — so a natural-language query finds memories that share no exact
+    words. Degrades to keyword-only if embedding is unavailable. Pure code
+    (`backend/app/mcp/supabase_tools.py`), no schema change; ships on next Render
+    deploy.
+  - *Pre-call brief (3b):* new `get_context_brief(name)` MCP tool — one call
+    resolves an entity through its aliases and returns current_state topics,
+    last-contact date, open tasks, recent memories, recent decisions, and
+    customer insights. Pure read composition of existing RPCs.
+  - *Weekly reconciliation (3c):* new n8n workflow
+    (`Workflows/n8n workflows/weekly-reconciliation-workflow.json`), Sunday 6pm
+    NZT — reads the week's memories + current_state + decisions-due, asks Sonnet 5
+    to reconcile, pushes a digest to Telegram + logs a `weekly_reconciliation`
+    memory. **Propose-only:** it surfaces current_state corrections for Zane (or a
+    Claude session) to apply via `update_current_state` — it does not auto-rewrite
+    the truth layer.
+  - *Calendar-aware brief (3d):* the 6am Daily Brief gains a "Get Today's
+    Calendar" node feeding a "Today's calendar" section with a mini pre-call for
+    recognised attendees. **Blocked on a one-time Google Calendar OAuth2
+    credential in n8n** (none exists yet) — the node fails soft until it's
+    attached, so the brief keeps sending meanwhile. Local JSON updated; not yet
+    applied to the live active brief (would need the credential first).
 
 ## Live data snapshot (2026-07-11, except rows marked 07-16 below)
 
@@ -124,7 +151,9 @@ iOS voice notes ─────────┘   extraction + embeddings     ent
      summaries but **zero extracted entities**, and are skipped by
      `get_recent_memories`/theme search. `indexed` is a status the docs never knew
      about; either the voice pipeline changed, or these should be flipped to
-     `completed` after backfilling extraction.
+     `completed` after backfilling extraction. → **Fix built 2026-07-17** (Wave 4):
+     `Workflows/flip_indexed_memories.sql` flips the ~4 remaining `indexed` rows to
+     `completed` (they already have embeddings, so hybrid recall picks them up).
    - 2 `transcribed` (23–24 Jun voice notes), 1 `extracting` (Dec 2025) — stuck.
 4. **`living_context` is empty and orphaned** — its updater (Telegram `/end`) is
    retired. → **Fix built 2026-07-16**: `current_state` table replaces the concept
@@ -174,6 +203,36 @@ Three layers, all coded and verified — manual go-live steps in `SETUP_CHECKIN_
 5. Keep this doc updated with each progress change.
 
 ## Changelog
+
+### 2026-07-17 — Wave 3: recall + proactive layer (+ Wave 4 hygiene)
+- **Hybrid `search_memories` (3a):** unions semantic
+  (`agent_search_memories_by_embedding`, on the embeddings every memory already
+  pays for) with the keyword RPC, merges by memory_id, re-ranks
+  `0.6·similarity + 0.4·(keyword/9)`, tags each result `match_type`. Falls back
+  to keyword-only if the OpenAI embed call or RPC fails — no regression, no
+  schema change. `backend/app/mcp/supabase_tools.py`.
+- **`get_context_brief(name)` (3b):** new MCP tool, one-call pre-contact brief —
+  resolves the entity through canonical aliases and composes current_state,
+  last-contact, open tasks (matched client-side against the open list), recent
+  memories, recent decisions, and customer insights. Registered in `server.py`
+  (28 tools now).
+- **Weekly Reconciliation workflow (3c):** new n8n workflow, Sunday 6pm NZT →
+  week's memories + current_state + decisions-due → Sonnet 5 reconciles →
+  Telegram digest + a `weekly_reconciliation` memory. **Propose-only** (surfaces
+  current_state corrections for review; does not auto-rewrite the truth layer).
+  Local JSON in `Workflows/n8n workflows/weekly-reconciliation-workflow.json`;
+  created inactive in n8n pending Zane's review + activate.
+- **Calendar-aware Daily Brief (3d):** "Get Today's Calendar" node → "Today's
+  calendar" brief section with mini pre-calls. Fails soft (brief still sends if
+  calendar errors). **Blocked on a Google Calendar OAuth2 credential in n8n** —
+  local JSON updated + re-synced to the live brief (which had gained the
+  Get Decisions Due node since the last local snapshot); NOT applied to the live
+  active workflow until the credential exists.
+- **Wave 4 hygiene:** `flip_indexed_memories.sql` (the ~4 stale `indexed` voice
+  rows → `completed`); `get_recent_memories` docstring source values already
+  accurate (no `telegram_conversation`); this doc + CLAUDE_CODE_CONTEXT updated.
+- **Deploy note:** 3a/3b are live only after the next Render deploy of the MCP
+  server; 3c/3d need the n8n-side steps above.
 
 ### 2026-07-16 — Wave 2: extraction discipline + entity resolution
 - **Tightened the 4 extraction prompts** in the live Ingest workflow: Entities

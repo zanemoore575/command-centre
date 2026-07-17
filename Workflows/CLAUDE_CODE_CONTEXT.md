@@ -28,7 +28,7 @@ bottom). n8n is a pipeline, not an agent.
 | MCP server | Render: `https://cais-mcp-server.onrender.com` | `backend/app/mcp/server.py`, start `python -m app.mcp.server`, root dir `backend`, Python 3.12.7, Starter instance, single instance (in-memory OAuth state). `/health` for health checks |
 | GitHub repo | `zanemoore575/cais-command-centre` (private) | Render deploys from it |
 | Supabase | `https://erwxszdcisyuyjmefvbj.supabase.co` | **Current** project. `wwqdkiphfpdczgmnxxrt` (in old docs) is the dead original |
-| n8n | `https://n8n-latest-rllq.onrender.com` | Hosts the four load-bearing workflows below |
+| n8n | `https://n8n-latest-rllq.onrender.com` | Hosts the load-bearing workflows below |
 | Secrets | Render Environment tab (server) / n8n credentials (pipeline) | `backend/.env` is local-only, gitignored. MCP server needs `SUPABASE_SERVICE_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (artifact embeddings), Google OAuth pair |
 
 ## Load-bearing n8n workflows
@@ -38,18 +38,24 @@ bottom). n8n is a pipeline, not an agent.
 | Ingestion Pipeline | `n8n workflows/ingest-workflow.json` | 7-way extraction (entities, decisions, reflections, insights, customer insights, tasks, themes) + embedding. Two entry points: `/webhook/ingest-conversation` (voice path — inserts row) and `/webhook/ingest-pending` (poller path — updates row in place). Task extraction dedups via `agent_find_similar_open_task` (>0.45 trigram) before insert. Entities go through `agent_ingest_entity` (an HTTP-RPC node, not a direct table insert since 2026-07-16 Wave 2) for live canonical matching — see "Entity resolution" below. All 4 extraction prompts (entities/decisions/strategic insights/reflections) are capped and disciplined as of Wave 2; live model is `gpt-5.6-terra` (upgraded outside any Wave — check `n8n_get_workflow` before assuming it's still `gpt-4.1-mini`) |
 | Pending Memory Poller | `n8n workflows/pending-memory-poller-workflow.json` | Every 2 min: claims any `memories` row at `status='pending'` (→`claimed`), POSTs to `/webhook/ingest-pending`. Makes ingestion source-agnostic — any writer just inserts with `status='pending'` |
 | Shortcut Voice | `shortcut_voicenote_workflow.json` | iOS Shortcut voice-note ingestion |
-| Daily Brief | `n8n workflows/daily-brief-workflow.json` (id `cSXO7IBGQ5qQQY8Z`) | 6:00am Pacific/Auckland cron: open + suggested tasks + recent memories + decisions due for review → Anthropic API (claude-sonnet-5) writes the day plan → Telegram push (new bot, push-only, no reply capture) with a link to the live check-in page. An orphaned, disconnected `Telegram Trigger` node (dead cruft from the retired conversational-bot era, live webhook + credentials but zero connections) was removed 2026-07-16 — it was blocking any partial workflow update. |
+| Daily Brief | `n8n workflows/daily-brief-workflow.json` (id `cSXO7IBGQ5qQQY8Z`) | 6:00am Pacific/Auckland cron: open + suggested tasks + recent memories + decisions due for review (+ today's Google Calendar, Wave 3d) → Anthropic API (claude-sonnet-5) writes the day plan → Telegram push (new bot, push-only, no reply capture) with a link to the live check-in page. An orphaned, disconnected `Telegram Trigger` node (dead cruft from the retired conversational-bot era, live webhook + credentials but zero connections) was removed 2026-07-16 — it was blocking any partial workflow update. **Wave 3d note:** the local JSON adds a fail-soft `Get Today's Calendar` node, but the *live* workflow has NOT been given it yet — it needs a Google Calendar OAuth2 credential in n8n (none exists), and a dangling credential would break the 6am run. Apply to live only after the credential is created. |
+| Weekly Reconciliation | `n8n workflows/weekly-reconciliation-workflow.json` (Wave 3c, new) | Sunday 6pm Pacific/Auckland cron: week's memories (`agent_get_recent_memories` limit 100, filtered to 7 days) + full `current_state` + decisions-due → Anthropic (claude-sonnet-5) reconciles → Telegram digest + inserts a `weekly_reconciliation` memory (status `completed`, no re-extraction). **Propose-only** — surfaces current_state corrections to apply via `update_current_state`; does not auto-write the truth layer. Created **inactive** pending Zane's review + activate. |
 
 `n8n workflows/telegram_*.json` (the old bot/agent) are retired — do not modify
 or deploy them. The daily brief's Telegram *push* is deliberate and fine — it's
 the conversational agent that stays dead.
 
-## MCP tools (24, defined in `backend/app/mcp/server.py` + `supabase_tools.py`)
+## MCP tools (28, defined in `backend/app/mcp/server.py` + `supabase_tools.py`)
 
 - **Read:** `discover_database`, `get_current_state(topic?)` — query this FIRST,
   it's the current-truth layer — `get_tasks(status, limit)`, `get_recent_memories`,
-  `search_memories`, `search_entities`, `get_memory`, `get_decisions`,
-  `get_decisions_due_for_review(limit)`, `get_reflections`,
+  `search_memories` (Wave 3a — now **hybrid**: embeds the query and unions
+  `agent_search_memories_by_embedding` with the keyword RPC, re-ranks, tags each
+  result `match_type`; falls back to keyword-only on embed failure),
+  `search_entities`, `get_context_brief(name)` (Wave 3b, new — one-call pre-contact
+  brief: resolves the entity through aliases + composes current_state, last-contact,
+  open tasks, recent memories, decisions, customer insights), `get_memory`,
+  `get_decisions`, `get_decisions_due_for_review(limit)`, `get_reflections`,
   `get_strategic_insights`, `get_customer_insights`,
   `get_entity_matches_due_for_review(limit)` (Wave 2, new)
 - **Write:** `log_memory`, `update_current_state(topic, statement, detail?, status?, source_memory_id?)`,
@@ -208,6 +214,10 @@ current_state   -- added 2026-07-16 (Wave 1a) — the "current truth" layer: one
 ```sql
 agent_discover_database() → TABLE
 agent_search_memories_by_embedding(query_embedding, match_threshold, match_count) → TABLE
+  -- Wave 3a: now called by the MCP `search_memories` tool (was DB/n8n-only). The
+  -- tool embeds the query via OpenAI text-embedding-3-small, calls this, and
+  -- unions the result with agent_search_by_theme. threshold 0.35, over-fetches
+  -- ~2×limit per leg, merges by memory_id, re-ranks 0.6·sim + 0.4·(kw/9).
 agent_get_entity_details(search_name TEXT) → TABLE
   -- Wave 2: resolves search_name through canonical_entities (name/alias ILIKE),
   -- returns every entities row sharing that canonical_id, PLUS a raw ILIKE
@@ -425,6 +435,36 @@ history, `../archive/`, and the `n8n workflows/telegram_*.json` files.
 ---
 
 ## Changelog
+
+### 2026-07-17: Recall + proactive layer (Wave 3) + hygiene (Wave 4)
+- **Hybrid `search_memories` (3a)** — `supabase_tools.py`. Was keyword-only
+  (`agent_search_by_theme`); now also embeds the query (OpenAI
+  text-embedding-3-small, same model the pipeline uses) and calls
+  `agent_search_memories_by_embedding`, merges by memory_id, re-ranks
+  `0.6·similarity + 0.4·(relevance/9)`, tags `match_type`. Wrapped so an embed/RPC
+  failure silently degrades to the old keyword path (no hard fail, no schema change).
+- **`get_context_brief(name)` (3b)** — new MCP tool, pure read composition of
+  existing tool helpers (`search_entities` + `get_current_state` + `get_tasks`
+  filtered client-side + `get_decisions` + `get_customer_insights`). Returns a
+  single dict: canonical names, last_contact, mention_count, current_state,
+  open_tasks, recent_memories, recent_decisions, customer_insights.
+- **Weekly Reconciliation workflow (3c)** — new
+  `n8n workflows/weekly-reconciliation-workflow.json`. Sunday 6pm NZT. Same node
+  vocabulary as the daily brief (schedule → HTTP-RPC fetches → Code payload →
+  Anthropic → Code format → Telegram + a memory-insert HTTP node). Propose-only;
+  created inactive.
+- **Calendar-aware Daily Brief (3d)** — added a fail-soft `Get Today's Calendar`
+  (`googleCalendar` v1.3, getAll, today in Pacific/Auckland) between Get Decisions
+  Due and Build Brief Payload; Build Brief Payload reads it defensively and the
+  system prompt gained a "Today's calendar" section with per-attendee pre-calls.
+  Local JSON updated + re-synced to the live brief structure. Live apply gated on
+  a Google Calendar OAuth2 credential in n8n.
+- **Wave 4 hygiene** — `Workflows/flip_indexed_memories.sql` (stale `indexed` voice
+  rows → `completed`, so hybrid recall sees them; they already have embeddings).
+  `get_recent_memories` docstring source values confirmed accurate. Docs updated.
+- **Deploy dependencies:** 3a/3b require a Render redeploy of the MCP server;
+  3c/3d require the n8n import/activate + (3d) the calendar credential;
+  Wave 4 SQL runs in the Supabase SQL editor.
 
 ### 2026-07-16: Extraction discipline + entity resolution (Wave 2)
 - **4 extraction prompts tightened** in the live Ingest workflow (applied via

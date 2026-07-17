@@ -1,0 +1,332 @@
+{
+  "name": "Weekly Reconciliation",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Weekly Reconciliation — Sunday 6pm NZT\n\nBackground process that keeps the current-truth layer honest without Zane doing anything.\nReads the week's memories + current_state + decisions due, asks Claude to reconcile, and pushes a digest to Telegram + logs a 'weekly_reconciliation' memory.\n\nPROPOSE-ONLY by design: it surfaces current_state updates for Zane (or a Claude session) to apply via update_current_state — it does NOT auto-rewrite the truth layer.\n\nSETUP (one-time):\n1. Attach the 'Command Centre Bot' Telegram credential + set the real chat id on 'Send Reconciliation Digest'.\n2. In 'Format Digest', replace REPLACE_WITH_CHECKIN_TOKEN with the real CHECKIN_TOKEN.\n3. Confirm the Supabase + Anthropic credentials resolved on import.\n4. Activate when happy — created inactive so it never fires before review.",
+        "height": 380,
+        "width": 420
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        80
+      ],
+      "id": "recon-note-0000-4000-9000",
+      "name": "Setup Notes 000"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * 0"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -160,
+        320
+      ],
+      "id": "recon-trig-0001-4001-9001",
+      "name": "Every Sunday 6pm NZT"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erwxszdcisyuyjmefvbj.supabase.co/rest/v1/rpc/agent_get_recent_memories",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ limit_count: 100 }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        140,
+        160
+      ],
+      "id": "recon-mem-0002-4002-9002",
+      "name": "Get Recent Memories (week)",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erwxszdcisyuyjmefvbj.supabase.co/rest/v1/rpc/agent_get_current_state",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        140,
+        320
+      ],
+      "id": "recon-state-0003-4003-9003",
+      "name": "Get Current State",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erwxszdcisyuyjmefvbj.supabase.co/rest/v1/rpc/agent_get_decisions_due_for_review",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ limit_count: 5 }) }}",
+        "options": {
+          "onError": "continueRegularOutput"
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        140,
+        480
+      ],
+      "id": "recon-dec-0004-4004-9004",
+      "name": "Get Decisions Due",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Weekly reconciliation payload — the week's memories vs the current-truth layer.\nconst now = Date.now();\nconst weekAgo = now - 7 * 86400000;\n\nconst memoriesRaw = $('Get Recent Memories (week)').all().map(i => i.json).filter(m => m && m.memory_id);\nconst stateRaw    = $('Get Current State').all().map(i => i.json).filter(s => s && s.topic);\nconst decisionsRaw = $('Get Decisions Due').all().map(i => i.json).filter(d => d && d.decision_id);\n\nconst weekMemories = memoriesRaw.filter(m => new Date(m.created_at).getTime() >= weekAgo);\n\nconst payload = {\n  week_ending_nz: new Date().toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Pacific/Auckland' }),\n  memory_count_this_week: weekMemories.length,\n  memories_this_week: weekMemories.slice(0, 60).map(m => ({\n    date: (m.created_at || '').slice(0, 10),\n    theme: (m.main_theme || m.summary || '').split('\\n')[0].slice(0, 220),\n  })),\n  current_state: stateRaw.map(s => ({\n    topic: s.topic,\n    statement: (s.statement || '').slice(0, 400),\n    status: s.status,\n    updated: (s.updated_at || '').slice(0, 10),\n  })),\n  decisions_due_for_review: decisionsRaw.slice(0, 5).map(d => ({\n    decision: d.decision_text,\n    category: d.category || null,\n    decided_on: (d.decision_date || '').slice(0, 10),\n  })),\n};\n\nconst system = `You are the background reconciler for Zane's Command Centre — the system that keeps his current-truth layer (current_state) honest without him lifting a finger. Once a week you read everything that happened and reconcile it against what the system currently believes is true.\n\nZane runs Moore AI Studios (AI solutions for NZ small businesses; live threads: Jake at Core Finance, Greenmachine, his own content/marketing, and this Command Centre system).\n\nYou get JSON: current_state (the canonical belief per topic, most recent first), memories_this_week (what actually happened, newest facts win), and decisions_due_for_review (past decisions whose outcome is still unrecorded).\n\nWrite a Telegram message using ONLY <b> and <i> tags. No markdown, no other tags. Under 3400 characters. Lead with one line: \"Week reconciled — <the date>\". Then these sections, each only if it has content:\n\n<b>Truth to update</b> — topics in current_state that this week's memories contradict or move on. For each: the topic, then the corrected statement in one line. These are PROPOSALS for Zane to apply (or a Claude session to apply via update_current_state) — write them so they can be copied straight in.\n<b>New threads</b> — anything significant this week not yet tracked as a current_state topic, worth adding.\n<b>Contradictions</b> — places where the week's memories disagree with each other or with a decision, that a human should resolve.\n<b>Decisions to close</b> — for each decisions_due_for_review item, one line phrased as a question inviting Zane to record the outcome (do NOT answer for him).\n<b>Gone quiet</b> — active current_state topics with no mention at all this week (possible stalls or things to follow up).\n\nBe specific and use real topic/client names. Never invent events. If a section is empty, omit its header. If the whole week is genuinely quiet, say so in one honest line rather than padding.`;\n\nreturn [{\n  json: {\n    week_ending_nz: payload.week_ending_nz,\n    anthropic_body: {\n      model: 'claude-sonnet-5',\n      max_tokens: 2000,\n      thinking: { type: 'disabled' },\n      system,\n      messages: [{ role: 'user', content: JSON.stringify(payload) }],\n    },\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        320
+      ],
+      "id": "recon-build-0005-4005-9005",
+      "name": "Build Reconciliation Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.anthropic_body) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        740,
+        320
+      ],
+      "id": "recon-claude-0006-4006-9006",
+      "name": "Claude — Reconcile Week",
+      "credentials": {
+        "anthropicApi": {
+          "id": "OBByahzbCLVaSEIc",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turn Claude's reconciliation into a Telegram digest + a memory note.\nconst CHECKIN_URL = 'https://cais-mcp-server.onrender.com/checkin?token=REPLACE_WITH_CHECKIN_TOKEN';\n\nconst res = $json;\nlet text = (res.content || [])\n  .filter(b => b.type === 'text')\n  .map(b => b.text)\n  .join('\\n')\n  .trim();\n\nif (!text) {\n  text = '<b>Weekly reconciliation failed to generate</b> — check the reconciliation workflow execution log.';\n}\n\nconst week = $('Build Reconciliation Payload').first().json.week_ending_nz;\nconst footer = `\\n\\n<a href=\"${CHECKIN_URL}\">Open the check-in →</a>`;\nconst MAX = 4096 - footer.length - 20;\nlet message = text.length > MAX ? text.slice(0, MAX) + '…' : text;\n\nreturn [{ json: { message: message + footer, memory_text: text, week_ending_nz: week } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        320
+      ],
+      "id": "recon-fmt-0007-4007-9007",
+      "name": "Format Digest"
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML",
+          "disable_web_page_preview": true
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1520,
+        240
+      ],
+      "id": "recon-tg-0008-4008-9008",
+      "name": "Send Reconciliation Digest",
+      "credentials": {
+        "telegramApi": {
+          "id": "5zfonbhVE1Qi8PH2",
+          "name": "Command Centre Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://erwxszdcisyuyjmefvbj.supabase.co/rest/v1/memories",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ title: 'Weekly reconciliation — ' + $json.week_ending_nz, transcript: $json.memory_text, summary: ($json.memory_text || '').slice(0, 500), source: 'weekly_reconciliation', status: 'completed' }) }}",
+        "options": {
+          "onError": "continueRegularOutput"
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1520,
+        400
+      ],
+      "id": "recon-log-0009-4009-9009",
+      "name": "Log Reconciliation Memory",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every Sunday 6pm NZT": {
+      "main": [
+        [
+          {
+            "node": "Get Recent Memories (week)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Recent Memories (week)": {
+      "main": [
+        [
+          {
+            "node": "Get Current State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Current State": {
+      "main": [
+        [
+          {
+            "node": "Get Decisions Due",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Decisions Due": {
+      "main": [
+        [
+          {
+            "node": "Build Reconciliation Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reconciliation Payload": {
+      "main": [
+        [
+          {
+            "node": "Claude — Reconcile Week",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude — Reconcile Week": {
+      "main": [
+        [
+          {
+            "node": "Format Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Digest": {
+      "main": [
+        [
+          {
+            "node": "Send Reconciliation Digest",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Reconciliation Memory",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Pacific/Auckland",
+    "errorWorkflow": "IAZtNcqjAAqG60M2"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

@@ -1,16 +1,20 @@
 {
+  "name": "Daily Brief",
   "nodes": [
     {
       "parameters": {
-        "content": "## Daily Brief — 6am push\n\nSETUP (one-time):\n1. Create the new Telegram bot via @BotFather, add its token as an n8n Telegram credential, and select it on the 'Send Telegram Brief' node.\n2. Message the bot once, then get your chat id (e.g. via @userinfobot) and paste it into 'Send Telegram Brief' → Chat ID.\n3. In 'Format For Telegram', replace REPLACE_WITH_CHECKIN_TOKEN in CHECKIN_URL with the real CHECKIN_TOKEN (same value as the Render env var).\n4. Requires task_triage_migration.sql to be applied in Supabase (agent_get_tasks with limit_count + suggested status).\n\nPush-only by design — act on tasks via the check-in page link or claude.ai, not by replying here.",
-        "height": 340,
-        "width": 400
+        "content": "## Daily Brief — 6am push\n\nSETUP (one-time):\n1. Telegram: attach 'Command Centre Bot' + set the real chat id on 'Send Telegram Brief'.\n2. In 'Format For Telegram' → CHECKIN_URL, replace REPLACE_WITH_CHECKIN_TOKEN with the real CHECKIN_TOKEN.\n3. CALENDAR (Wave 3d): create a Google Calendar OAuth2 credential in n8n and attach it to \"Get Today's Calendar\". Until then that node fails soft and the brief sends without a calendar section.\n4. Requires task_triage + decision_outcomes migrations applied in Supabase.\n\nPush-only by design — act on tasks via the check-in page link or claude.ai, not by replying here.",
+        "height": 380,
+        "width": 420
       },
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-560, -640],
-      "id": "a1b2c3d4-1111-4001-9001-dailybrief001",
-      "name": "Setup Notes"
+      "position": [
+        -620,
+        -40
+      ],
+      "id": "brief-note-0000-4000-8000",
+      "name": "Setup Notes 000"
     },
     {
       "parameters": {
@@ -25,8 +29,11 @@
       },
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-560, -416],
-      "id": "b2c3d4e5-2222-4002-9002-dailybrief002",
+      "position": [
+        0,
+        320
+      ],
+      "id": "brief-trig-0001-4001-8001",
       "name": "Every Day 6am NZT"
     },
     {
@@ -42,14 +49,17 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [-320, -560],
-      "id": "c3d4e5f6-3333-4003-9003-dailybrief003",
+      "position": [
+        304,
+        16
+      ],
+      "id": "brief-open-0002-4002-8002",
       "name": "Get Open Tasks",
       "alwaysOutputData": true,
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       }
     },
@@ -66,14 +76,17 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [-320, -416],
-      "id": "d4e5f6a7-4444-4004-9004-dailybrief004",
+      "position": [
+        304,
+        208
+      ],
+      "id": "brief-sugg-0003-4003-8003",
       "name": "Get Suggested Tasks",
       "alwaysOutputData": true,
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       }
     },
@@ -90,25 +103,88 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [-320, -272],
-      "id": "e5f6a7b8-5555-4005-9005-dailybrief005",
+      "position": [
+        304,
+        416
+      ],
+      "id": "brief-mem-0004-4004-8004",
       "name": "Get Recent Memories",
       "alwaysOutputData": true,
       "credentials": {
         "supabaseApi": {
-          "id": "WLH1xOtq0dhre1iC",
-          "name": "Zane.moore575 Supabase"
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// Assemble a compact payload for Claude — trim fields to keep tokens low.\nconst openRaw = $('Get Open Tasks').all().map(i => i.json).filter(t => t && t.task_id);\nconst suggestedRaw = $('Get Suggested Tasks').all().map(i => i.json).filter(t => t && t.task_id);\nconst memoriesRaw = $('Get Recent Memories').all().map(i => i.json).filter(m => m && m.memory_id);\n\nconst slimTask = t => ({\n  task: t.task_text,\n  urgency: t.urgency,\n  due: t.due_date || null,\n  category: t.category || null,\n  who: t.entity_name || null,\n  age_days: Math.round((Date.now() - new Date(t.created_date)) / 86400000),\n});\n\nconst payload = {\n  date_nz: new Date().toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Pacific/Auckland' }),\n  open_tasks: openRaw.slice(0, 40).map(slimTask),\n  suggested_inbox: suggestedRaw.slice(0, 10).map(slimTask),\n  recent_memories: memoriesRaw.slice(0, 8).map(m => ({\n    date: (m.created_at || '').slice(0, 10),\n    theme: (m.main_theme || m.summary || '').split('\\n')[0].slice(0, 180),\n  })),\n};\n\nconst system = `You are Zane's chief of staff writing his 6am daily brief. Zane runs Moore AI Studios (AI solutions for small businesses in NZ; current clients/projects: Jake at Core Finance, Greenmachine, plus his own content/marketing and the Command Centre system).\\n\\nYou get JSON: open_tasks (already sorted soonest-due, most urgent first), suggested_inbox (auto-extracted tasks he hasn't accepted yet), recent_memories (what happened lately).\\n\\nWrite a Telegram message using ONLY these HTML tags: <b>, <i>. No markdown, no headers, no other tags. Under 3200 characters. Structure:\\n1. One short greeting line with the date. No fluff, no 'I hope'.\\n2. <b>Top 3 today</b> — the three highest-leverage tasks. One line each: the task, then <i>why now</i> (deadline, client momentum, what it unblocks). Choose by judgement, not just list order.\\n3. <b>Also on the board</b> — up to 4 more worth remembering, grouped by client/project, one line each.\\n4. <b>Inbox to triage</b> — only if suggested_inbox is non-empty: up to 5, one line each, so he can keep/dismiss on the check-in page.\\n5. <b>Watch</b> — only if recent_memories reveal an open loop, risk, or someone he's waiting on: one or two lines.\\n\\nBe specific — use client and task names from the data. Never invent tasks or deadlines. Total read time should be under a minute.`;\n\nreturn [{\n  json: {\n    anthropic_body: {\n      model: 'claude-sonnet-5',\n      max_tokens: 1600,\n      thinking: { type: 'disabled' },\n      system,\n      messages: [{ role: 'user', content: JSON.stringify(payload) }],\n    },\n  },\n}];"
+        "method": "POST",
+        "url": "https://erwxszdcisyuyjmefvbj.supabase.co/rest/v1/rpc/agent_get_decisions_due_for_review",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ limit_count: 2 }) }}",
+        "options": {
+          "onError": "continueRegularOutput"
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        304,
+        608
+      ],
+      "id": "brief-dec-0005-4005-8005",
+      "name": "Get Decisions Due",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "OkwSUYAki4PQB722",
+          "name": "Command Centre"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "mode": "list",
+          "value": "primary",
+          "cachedResultName": "primary"
+        },
+        "returnAll": true,
+        "timeMin": "={{ $now.setZone('Pacific/Auckland').startOf('day').toISO() }}",
+        "timeMax": "={{ $now.setZone('Pacific/Auckland').endOf('day').toISO() }}",
+        "options": {
+          "singleEvents": true
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        304,
+        800
+      ],
+      "id": "brief-cal-0010-4010-9010",
+      "name": "Get Today's Calendar",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "notes": "Attach a Google Calendar OAuth2 credential before activating. Fails soft: if it errors, the brief still sends without a calendar section."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Assemble a compact payload for Claude — trim fields to keep tokens low.\nconst openRaw = $('Get Open Tasks').all().map(i => i.json).filter(t => t && t.task_id);\nconst suggestedRaw = $('Get Suggested Tasks').all().map(i => i.json).filter(t => t && t.task_id);\nconst memoriesRaw = $('Get Recent Memories').all().map(i => i.json).filter(m => m && m.memory_id);\nconst decisionsRaw = $('Get Decisions Due').all().map(i => i.json).filter(d => d && d.decision_id);\n\n// Calendar is optional — wrapped so a missing/failed node never breaks the brief.\nlet calRaw = [];\ntry {\n  calRaw = $(\"Get Today's Calendar\").all().map(i => i.json).filter(e => e && (e.summary || e.start));\n} catch (err) {\n  calRaw = [];\n}\n\nconst slimTask = t => ({\n  task: t.task_text,\n  urgency: t.urgency,\n  due: t.due_date || null,\n  category: t.category || null,\n  who: t.entity_name || null,\n  age_days: Math.round((Date.now() - new Date(t.created_date)) / 86400000),\n});\n\nconst payload = {\n  date_nz: new Date().toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Pacific/Auckland' }),\n  calendar_today: calRaw.slice(0, 12).map(e => ({\n    title: e.summary || '(no title)',\n    start: (e.start && (e.start.dateTime || e.start.date)) || '',\n    attendees: (e.attendees || []).map(a => a.displayName || a.email).filter(Boolean).slice(0, 6),\n    location: e.location || null,\n  })),\n  open_tasks: openRaw.slice(0, 40).map(slimTask),\n  suggested_inbox: suggestedRaw.slice(0, 10).map(slimTask),\n  recent_memories: memoriesRaw.slice(0, 8).map(m => ({\n    date: (m.created_at || '').slice(0, 10),\n    theme: (m.main_theme || m.summary || '').split('\\n')[0].slice(0, 180),\n  })),\n  decisions_due_for_review: decisionsRaw.slice(0, 2).map(d => ({\n    decision: d.decision_text,\n    category: d.category || null,\n    decided_on: (d.decision_date || '').slice(0, 10),\n  })),\n};\n\nconst system = `You are Zane's chief of staff writing his 6am daily brief. Zane runs Moore AI Studios (AI solutions for small businesses in NZ; current clients/projects: Jake at Core Finance, Greenmachine, plus his own content/marketing and the Command Centre system).\n\nYou get JSON: calendar_today (today's meetings, may be empty), open_tasks (already sorted soonest-due, most urgent first), suggested_inbox (auto-extracted tasks he hasn't accepted yet), recent_memories (what happened lately), decisions_due_for_review (past decisions worth checking the outcome of — may be empty).\n\nWrite a Telegram message using ONLY these HTML tags: <b>, <i>. No markdown, no headers, no other tags. Under 3200 characters. Structure:\n1. One short greeting line with the date. No fluff, no 'I hope'.\n2. <b>Today's calendar</b> — ONLY if calendar_today is non-empty: one line per meeting (time — title — who). For any attendee or subject you recognise from open_tasks/recent_memories, add an indented <i>pre-call</i> line with the single most useful piece of context. Omit this whole section if calendar_today is empty.\n3. <b>Top 3 today</b> — the three highest-leverage tasks. One line each: the task, then <i>why now</i> (deadline, client momentum, what it unblocks). Choose by judgement, not just list order.\n4. <b>Also on the board</b> — up to 4 more worth remembering, grouped by client/project, one line each.\n5. <b>Inbox to triage</b> — only if suggested_inbox is non-empty: up to 5, one line each, so he can keep/dismiss on the check-in page.\n6. <b>Watch</b> — only if recent_memories reveal an open loop, risk, or someone he's waiting on: one or two lines.\n7. <b>Decision check-in</b> — only if decisions_due_for_review is non-empty: one line per decision, phrased as a question inviting him to close the loop (e.g. \"On [date] you decided X — how did that play out?\"), not answering for him.\n\nBe specific — use client and task names from the data. Never invent tasks, meetings, or deadlines. Total read time should be under a minute.`;\n\nreturn [{\n  json: {\n    anthropic_body: {\n      model: 'claude-sonnet-5',\n      max_tokens: 1600,\n      thinking: { type: 'disabled' },\n      system,\n      messages: [{ role: 'user', content: JSON.stringify(payload) }],\n    },\n  },\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-80, -416],
-      "id": "f6a7b8c9-6666-4006-9006-dailybrief006",
+      "position": [
+        560,
+        416
+      ],
+      "id": "brief-build-0006-4006-8006",
       "name": "Build Brief Payload"
     },
     {
@@ -135,12 +211,15 @@
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
-      "position": [160, -416],
-      "id": "a7b8c9d0-7777-4007-9007-dailybrief007",
+      "position": [
+        816,
+        416
+      ],
+      "id": "brief-claude-0007-4007-8007",
       "name": "Claude — Write Daily Brief",
       "credentials": {
         "anthropicApi": {
-          "id": "6AhJQz2ZKkf4Ce3r",
+          "id": "OBByahzbCLVaSEIc",
           "name": "Anthropic account"
         }
       }
@@ -151,8 +230,11 @@
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [400, -416],
-      "id": "b8c9d0e1-8888-4008-9008-dailybrief008",
+      "position": [
+        1072,
+        416
+      ],
+      "id": "brief-fmt-0008-4008-8008",
       "name": "Format For Telegram"
     },
     {
@@ -167,9 +249,18 @@
       },
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [640, -416],
-      "id": "c9d0e1f2-9999-4009-9009-dailybrief009",
-      "name": "Send Telegram Brief"
+      "position": [
+        1328,
+        416
+      ],
+      "id": "brief-tg-0009-4009-8009",
+      "name": "Send Telegram Brief",
+      "credentials": {
+        "telegramApi": {
+          "id": "5zfonbhVE1Qi8PH2",
+          "name": "Command Centre Bot"
+        }
+      }
     }
   ],
   "connections": {
@@ -207,6 +298,28 @@
       ]
     },
     "Get Recent Memories": {
+      "main": [
+        [
+          {
+            "node": "Get Decisions Due",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Decisions Due": {
+      "main": [
+        [
+          {
+            "node": "Get Today's Calendar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Today's Calendar": {
       "main": [
         [
           {
@@ -253,7 +366,8 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "timezone": "Pacific/Auckland"
+    "timezone": "Pacific/Auckland",
+    "errorWorkflow": "IAZtNcqjAAqG60M2"
   },
   "meta": {
     "templateCredsSetupCompleted": false
